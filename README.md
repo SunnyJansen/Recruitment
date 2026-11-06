@@ -69,9 +69,11 @@ Terug in Supabase: **Authentication → URL Configuration**:
 
 Zonder deze stap werkt de inloglink uit de e-mail niet.
 
-### Stap 4 — Eigen mailserver (aanbevolen)
-De ingebouwde mail van Supabase verstuurt maar **2 inlogmails per uur**.
-Volg `docs/INLOGMAIL.md` om Supabase via Resend te laten mailen.
+### Stap 4 — Inlogmail (verplicht) en eigen mailserver (aanbevolen)
+Volg `docs/INLOGMAIL.md`:
+- **Deel A (verplicht):** de inlogmail aanpassen, zodat de link in elke browser werkt.
+- **Deel B (aanbevolen):** Supabase via Resend laten mailen. De ingebouwde mail
+  verstuurt maar 2 inlogmails per uur.
 
 ---
 

@@ -6,12 +6,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LINK_ERROR_MESSAGES, linkErrorKind, type LinkErrorKind } from "@/lib/auth/auth-links";
 import { describeLoginError } from "@/lib/auth/login-errors";
 import { createClient } from "@/lib/db/client";
-
-const LINK_ERRORS: Record<string, string> = {
-  link: "De inloglink is verlopen of al gebruikt. Vraag een nieuwe aan.",
-};
 
 /** Supabase staat per e-mailadres maar één inlogmail per minuut toe. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -20,8 +17,22 @@ export function LoginForm({ next, initialError }: { next: string; initialError?:
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(
-    initialError ? (LINK_ERRORS[initialError] ?? "Inloggen is mislukt. Probeer het opnieuw.") : null,
+    initialError
+      ? (LINK_ERROR_MESSAGES[initialError as LinkErrorKind] ?? LINK_ERROR_MESSAGES.link)
+      : null,
   );
+
+  // Supabase zet een fout bij een mislukte link soms achter een # in het adres.
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const code = hash.get("error_code") ?? hash.get("error");
+    if (!code) return;
+    const kind = linkErrorKind({ code, message: hash.get("error_description") });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- eenmalig lezen van de URL bij laden
+    setError(LINK_ERROR_MESSAGES[kind]);
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
+
   const [wait, setWait] = useState(0);
 
   // Aftellen zolang opnieuw aanvragen nog niet kan.

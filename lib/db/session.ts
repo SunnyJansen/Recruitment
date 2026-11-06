@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { authRedirectFor } from "../auth/auth-links";
+
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "./env";
 
 /** Pagina's die je zonder inloggen mag zien. */
@@ -23,6 +25,10 @@ export async function updateSession(request: NextRequest) {
     if (pathname === "/setup") return NextResponse.next();
     return NextResponse.redirect(new URL("/setup", request.url));
   }
+
+  // Inloglink op de verkeerde pagina beland? Code doorsturen i.p.v. weggooien.
+  const authRedirect = authRedirectFor(request.nextUrl);
+  if (authRedirect) return NextResponse.redirect(authRedirect);
 
   let response = NextResponse.next({ request });
 

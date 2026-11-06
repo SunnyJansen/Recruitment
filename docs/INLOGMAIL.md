@@ -1,4 +1,32 @@
-# Inlogmails zonder limiet: Supabase laten mailen via Resend
+# Inlogmail instellen
+
+## Deel A — Inloglink die altijd werkt (verplicht, 2 minuten)
+
+De standaardlink van Supabase werkt alleen in dezelfde browser waar je hem
+aanvroeg, en een virusscanner in je mailprogramma kan hem al "opgebruiken"
+voordat jij klikt. Met deze template opent de link een pagina met een knop
+**Log in**. Dat werkt in elke browser en op elk apparaat, ook vanaf je telefoon.
+
+1. Controleer eerst in Supabase → **Authentication → URL Configuration** dat de
+   **Site URL** je Vercel-adres is, **zonder `/` aan het eind**, bijvoorbeeld
+   `https://recruitment-xxxx.vercel.app`.
+2. Ga naar Supabase → **Authentication → Emails → Templates → Magic Link**.
+3. **Subject:** `Je inloglink voor Cr8las Recruitment`
+4. Vervang de hele **Body** door:
+
+```html
+<h2>Inloggen bij Cr8las Recruitment</h2>
+<p>Klik op de link en daarna op de knop <strong>Log in</strong>. De link werkt één keer en verloopt na een uur.</p>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Inloggen</a></p>
+<p>Heb je dit niet aangevraagd? Dan kun je deze mail negeren.</p>
+```
+
+5. Klik **Save changes**.
+6. Test: vraag een nieuwe link aan, klik op **Inloggen** in de mail en daarna op **Log in**.
+
+---
+
+## Deel B — Inlogmails zonder limiet: Supabase laten mailen via Resend
 
 **Waarom:** de ingebouwde mailserver van Supabase is alleen voor uitproberen.
 Hij verstuurt maximaal **2 mails per uur** voor het hele project. Met
@@ -51,21 +79,6 @@ zetten het nu al in.
 3. Klik **Save changes**.
 4. Supabase → **Authentication → Rate Limits** → zet **Rate limit for sending
    emails** op bijvoorbeeld `30` per uur → **Save**.
-
-## Stap 4 (optioneel) — Nederlandse inlogmail
-Supabase → **Authentication → Emails → Templates → Magic Link**:
-
-- **Subject:** `Je inloglink voor Cr8las Recruitment`
-- **Body:**
-
-```html
-<h2>Inloggen bij Cr8las Recruitment</h2>
-<p>Klik op de knop om in te loggen. De link werkt één keer en verloopt na een uur.</p>
-<p><a href="{{ .ConfirmationURL }}">Inloggen</a></p>
-<p>Heb je dit niet aangevraagd? Dan kun je deze mail negeren.</p>
-```
-
-Klik **Save changes**.
 
 ## Testen
 1. Open je Vercel-adres en vraag een inloglink aan.
