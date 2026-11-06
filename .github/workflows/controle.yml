@@ -1,0 +1,26 @@
+# Draait bij elke push en pull request op GitHub, zodat je niets op je laptop
+# hoeft te installeren. Resultaat: tabblad "Actions" in de repository.
+name: Controle
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  controle:
+    name: Tests, lint en build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pakketten installeren
+        run: npm ci
+      - name: Databaseregels testen
+        run: npm run test:db
+      - name: Codecontrole (lint)
+        run: npm run lint
+      - name: App bouwen
+        run: npm run build

@@ -9,7 +9,7 @@ Antwoorden van Sunny Jansen op de startvragen (6 november 2026). Bij twijfel gaa
 - **Huisstijl:** design systeem *Sunny Apple*, dashboardstijl (zie `docs/DESIGN.md`).
 
 ## Hosting en kosten
-- Testen gebeurt lokaal (`npm run dev`).
+- **Niets lokaal installeren.** Testen gaat via Vercel (automatische deployment na elke push) en GitHub Actions (tests). Sleutels staan in Vercel → Environment Variables.
 - **Vercel gratis (Hobby):** cron draait daar maar 1× per dag. Voor de verzendwachtrij (fase 6) gebruiken we daarom een gratis externe cron-dienst (bijv. cron-job.org) die een beveiligde URL aanroept met `CRON_SECRET`.
 - **Supabase gratis:** prima tijdens het bouwen (pauzeert na een week zonder activiteit).
 

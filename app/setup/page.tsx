@@ -18,15 +18,17 @@ export default function SetupPage() {
       >
         <ol className="flex list-decimal flex-col gap-2 pl-5 text-app-body">
           <li>
-            Kopieer <code className="rounded bg-surface-raised px-1.5">.env.example</code> naar{" "}
-            <code className="rounded bg-surface-raised px-1.5">.env.local</code>.
+            Open in Vercel je project → <strong>Settings → Environment Variables</strong>.
           </li>
           <li>
-            Vul <code className="rounded bg-surface-raised px-1.5">NEXT_PUBLIC_SUPABASE_URL</code> en{" "}
-            <code className="rounded bg-surface-raised px-1.5">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in. Je vindt
+            Voeg <code className="rounded bg-surface-raised px-1.5">NEXT_PUBLIC_SUPABASE_URL</code> en{" "}
+            <code className="rounded bg-surface-raised px-1.5">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> toe. Je vindt
             ze in Supabase onder Project Settings → API Keys.
           </li>
-          <li>Stop de app (Ctrl+C) en start hem opnieuw met npm run dev.</li>
+          <li>
+            Ga naar <strong>Deployments</strong>, klik bij de bovenste op de drie puntjes →{" "}
+            <strong>Redeploy</strong>. Pas na een nieuwe build kent de app de sleutels.
+          </li>
         </ol>
         <p className="text-app-meta text-muted-foreground">Uitgebreide stappen staan in README.md.</p>
       </Panel>

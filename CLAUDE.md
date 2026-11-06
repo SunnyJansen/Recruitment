@@ -39,7 +39,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
    - kandidaten zonder reactie na `retention_days` (standaard 180) automatisch anonimiseren
    - log elke actie in `activity_log`
 4. **AI beslist niet zelf over kandidaten.** Matchscore is advies; afwijzen/doorzetten doet een mens (EU AI Act: recruitment-AI = hoog risico).
-5. **Geheimen alleen in `.env.local`**, nooit in code of git.
+5. **Geheimen alleen in Vercel Environment Variables (of `.env.local`)**, nooit in code of git.
 6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken.
 
 ## Besluiten
@@ -71,6 +71,7 @@ Volledig schema: `supabase/migrations/`. Types: `lib/db/types.ts` (met de hand g
 ```
 
 ## Werkwijze
+- **Sunny installeert niets lokaal.** Testen gaat via de Vercel-deployment (automatisch na elke push) en GitHub Actions (`.github/workflows/controle.yml`: test:db, lint, build). Testinstructies dus altijd in browser-stappen: Vercel-adres, Supabase-dashboard, GitHub Actions. Nieuwe env-vars → in Vercel toevoegen + Redeploy. Database-wijzigingen → nieuw migratiebestand dat Sunny in de Supabase SQL Editor plakt.
 - Volg `docs/PLAN.md` fase voor fase. Begin pas aan een volgende fase als de huidige werkt.
 - Schrijf per module een kleine test of testscript.
 - Gebruik **Unipile sandbox/testaccount** of een LinkedIn-account dat gemist kan worden tijdens ontwikkelen.

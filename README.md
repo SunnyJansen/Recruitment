@@ -5,6 +5,15 @@ zoeken via LinkedIn (Unipile), matchen met Claude, berichten pas versturen na
 menselijke goedkeuring. Zie `CLAUDE.md` voor de regels en `docs/PLAN.md` voor
 de fases.
 
+**Je hoeft niets op je laptop te installeren.** Alles werkt in de browser:
+
+| Wat | Waar |
+|---|---|
+| Code schrijven | Claude Code (cloud), die pusht naar GitHub |
+| Tests | GitHub draait ze automatisch, zie tabblad **Actions** |
+| App bekijken en testen | Vercel bouwt de app automatisch na elke push |
+| Database en logins | Supabase-dashboard |
+
 ## Stand van zaken
 
 - [x] **Fase 1 — Fundament**: Next.js, Sunny Apple-huisstijl, inloggen met
@@ -13,61 +22,52 @@ de fases.
 
 ---
 
-## Eenmalig instellen op je laptop
+## Eenmalig instellen (alles in de browser, ±30 minuten)
 
-### 1. Programma's installeren
-- **Node.js** (LTS-versie): https://nodejs.org
-- **Git**: https://git-scm.com
-
-### 2. Code ophalen
-Open een terminal en typ:
-
-```bash
-git clone https://github.com/SunnyJansen/Recruitment.git
-```
-
-```bash
-cd Recruitment
-```
-
-```bash
-npm install
-```
-
-### 3. Supabase-project maken
+### Stap 1 — Supabase (database + login)
 1. Maak een gratis account op https://supabase.com en klik **New project**.
    - Naam: `cr8las-recruitment`
-   - Regio: **West EU (Frankfurt)** of **Ireland**. Dan blijven de gegevens in de EU (AVG).
+   - Regio: **Central EU (Frankfurt)** of **West EU (Ireland)**, zodat de gegevens in de EU blijven (AVG).
    - Bewaar het databasewachtwoord in je wachtwoordmanager.
-2. Ga naar **SQL Editor** → **New query**. Plak de hele inhoud van
-   `supabase/migrations/20261106000000_fundament.sql` en klik **Run**.
-   Je ziet dan "Success. No rows returned".
-3. Ga naar **Authentication → Sign In / Providers**:
-   - Zet **Allow new users to sign up** **uit**. Zo kan alleen wie jij toevoegt inloggen.
-   - Laat **Email** aan staan.
-4. Ga naar **Authentication → URL Configuration**:
-   - **Site URL**: `http://localhost:3000`
-   - **Redirect URLs**: voeg `http://localhost:3000/**` toe.
-5. Collega's (en jezelf) toevoegen: **Authentication → Users → Add user →
-   Create new user**. Vul het e-mailadres in, verzin een willekeurig wachtwoord
-   (dat wordt niet gebruikt) en vink **Auto Confirm User** aan.
+2. **SQL Editor** → **New query**. Open in GitHub het bestand
+   `supabase/migrations/20261106000000_fundament.sql`, klik rechtsboven op het
+   kopieer-icoon, plak de inhoud in de SQL Editor en klik **Run**. Je ziet dan
+   "Success. No rows returned".
+3. **Authentication → Sign In / Providers**: zet **Allow new users to sign up**
+   **uit**. Zo kan alleen wie jij toevoegt inloggen. Laat **Email** aan staan.
+4. **Authentication → Users → Add user → Create new user**: vul je eigen
+   e-mailadres in, verzin een willekeurig wachtwoord (dat wordt niet gebruikt)
+   en vink **Auto Confirm User** aan. Collega's voeg je later op dezelfde manier toe.
+5. Laat dit tabblad open. Bij stap 3 heb je het weer nodig.
 
-### 4. Sleutels invullen
-1. Kopieer `.env.example` naar een nieuw bestand `.env.local` (in dezelfde map).
-2. In Supabase: **Project Settings → API Keys**. Daar staan de waarden die je nodig hebt:
-   - `NEXT_PUBLIC_SUPABASE_URL`: de Project URL (bij **Data API**, of
-     `https://<project-id>.supabase.co`).
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: de **Publishable key** (`sb_publishable_…`) of de
-     oude **anon public** key. Beide werken.
-   - `SUPABASE_SERVICE_ROLE_KEY`: de **Secret key**. Die heb je pas vanaf fase 3
-     nodig. **Deze nooit delen.**
-3. `.env.local` gaat nooit naar GitHub (staat in `.gitignore`).
+### Stap 2 — Vercel (de app online zetten)
+1. Ga naar https://vercel.com/signup en kies **Continue with GitHub**
+   (plan: **Hobby**, gratis).
+2. **Add New… → Project** → kies de repository **Recruitment** → **Import**.
+   Zie je hem niet, klik dan **Adjust GitHub App Permissions** en geef Vercel
+   toegang tot `Recruitment`.
+3. Open vóór je op Deploy klikt **Environment Variables** en voeg toe
+   (waarden staan in Supabase onder **Project Settings → API Keys**):
 
-### 5. Starten
-```bash
-npm run dev
-```
-Open http://localhost:3000 in je browser.
+   | Name | Value |
+   |---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | de Project URL, `https://<project-id>.supabase.co` |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | de **Publishable key** (`sb_publishable_…`) |
+
+4. Klik **Deploy**. Na ±1 minuut krijg je een adres zoals
+   `https://recruitment-xxxx.vercel.app`. Dat is jouw app.
+
+> Later voeg je hier ook de andere sleutels uit `.env.example` toe
+> (Unipile, Anthropic, Resend). Na het toevoegen of wijzigen van een sleutel:
+> **Deployments → ⋯ → Redeploy**.
+
+### Stap 3 — Supabase laten weten waar de app staat
+Terug in Supabase: **Authentication → URL Configuration**:
+- **Site URL**: je Vercel-adres, bijv. `https://recruitment-xxxx.vercel.app`
+- **Redirect URLs** → **Add URL**: hetzelfde adres met `/**` erachter,
+  bijv. `https://recruitment-xxxx.vercel.app/**`
+
+Zonder deze stap werkt de inloglink uit de e-mail niet.
 
 ---
 
@@ -75,8 +75,15 @@ Open http://localhost:3000 in je browser.
 
 | Wat | Hoe |
 |---|---|
-| Databaseregels (zonder Supabase) | `npm run test:db`: draait de migratie in een nep-database en controleert de harde regels |
-| Codecontrole | `npm run lint` en `npm run build` |
+| Databaseregels, lint en build | Automatisch bij elke push. GitHub → **Actions** → groen vinkje = in orde |
+| De app zelf | Je Vercel-adres openen in de browser |
+| Nieuwe versie | Vercel bouwt na elke push zelf een nieuwe versie (tabblad **Deployments**) |
+
+## Sleutels en geheimen
+Sleutels staan **alleen** in Vercel (Settings → Environment Variables) en
+nooit in de code of in GitHub. `.env.example` laat zien welke er zijn.
+Wil je later toch lokaal werken, dan zet je ze in `.env.local`. Dat bestand
+gaat ook nooit naar GitHub.
 
 ## Mappen
 
@@ -86,6 +93,7 @@ components/ui/    knoppen, velden, panelen: Sunny Apple-stijl, shadcn/ui-opzet
 lib/db/           Supabase-koppeling, types, activity-log
 proxy.ts          beschermt alle pagina's achter de login
 supabase/         database-migraties (SQL)
-scripts/          testscripts
+scripts/          testscripts (draaien automatisch op GitHub)
+.github/          automatische controle bij elke push
 docs/             plan, besluiten, huisstijl
 ```
