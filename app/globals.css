@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+/*
+ * Huisstijl: design systeem "Sunny Apple" (dashboardstijl).
+ * Donker is het standaardthema; licht staat onder [data-theme="light"].
+ * Waarden 1-op-1 uit tokens.json van het design systeem. Zie docs/DESIGN.md.
+ */
+
+@custom-variant dark (&:where(:root:not([data-theme="light"]) *, :root:not([data-theme="light"])));
+
+:root {
+  color-scheme: dark;
+
+  /* Sunny Apple — donker */
+  --app-background: #0d1016;
+  --app-glow-blue: rgba(40, 90, 190, 0.45);
+  --app-glow-red: rgba(140, 50, 70, 0.35);
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-border: rgba(255, 255, 255, 0.12);
+  --surface-raised: rgba(255, 255, 255, 0.07);
+  --surface-solid: #191e29;
+  --input-fill: rgba(255, 255, 255, 0.055);
+  --input-stroke: rgba(255, 255, 255, 0.14);
+  --text-strong: #f1f3f7;
+  --text-muted: rgba(225, 232, 245, 0.66);
+  --accent: #3b97ff;
+  --accent-text: #6cb2ff;
+  --accent-tint: rgba(59, 151, 255, 0.18);
+  --on-accent: #ffffff;
+  --success: #3fcf7d;
+  --success-tint: rgba(63, 207, 125, 0.16);
+  --danger-text: #f26b6b;
+  --danger-tint: rgba(240, 90, 90, 0.1);
+  --danger-stroke: rgba(240, 90, 90, 0.25);
+  --warning: rgba(255, 146, 48, 1);
+  --chip-active: #f1f3f7;
+  --chip-active-text: #1a1d24;
+  --scrim: rgba(5, 7, 12, 0.6);
+  --focus-ring: rgba(59, 151, 255, 0.5);
+  --shadow-surface: inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 12px 32px -8px rgba(0, 0, 0, 0.35);
+  --shadow-accent-glow: 0 6px 20px -4px rgba(59, 151, 255, 0.55);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Sunny Apple — licht (afgeleid, zie design systeem) */
+  --app-background: #eef1f6;
+  --app-glow-blue: rgba(59, 151, 255, 0.18);
+  --app-glow-red: rgba(255, 90, 120, 0.12);
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-border: rgba(0, 0, 0, 0.08);
+  --surface-raised: rgba(0, 0, 0, 0.04);
+  --surface-solid: #ffffff;
+  --input-fill: rgba(255, 255, 255, 1);
+  --input-stroke: rgba(0, 0, 0, 0.12);
+  --text-strong: #14171f;
+  --text-muted: rgba(20, 23, 31, 0.62);
+  --accent: #2f86f0;
+  --accent-text: #1f6fd6;
+  --accent-tint: rgba(59, 151, 255, 0.12);
+  --on-accent: #ffffff;
+  --success: #1f9d55;
+  --success-tint: rgba(31, 157, 85, 0.12);
+  --danger-text: #d93a3a;
+  --danger-tint: rgba(217, 58, 58, 0.08);
+  --danger-stroke: rgba(217, 58, 58, 0.25);
+  --warning: rgba(255, 141, 40, 1);
+  --chip-active: #14171f;
+  --chip-active-text: #ffffff;
+  --scrim: rgba(20, 23, 31, 0.35);
+  --focus-ring: rgba(47, 134, 240, 0.5);
+  --shadow-surface: 0 1px 2px 0 rgba(0, 0, 0, 0.04), 0 12px 32px -12px rgba(20, 30, 60, 0.18);
+  --shadow-accent-glow: 0 6px 16px -6px rgba(47, 134, 240, 0.5);
+}
+
+/*
+ * Tailwind-kleuren. De shadcn/ui-namen (background, foreground, primary, …)
+ * wijzen naar Sunny Apple-tokens, zodat later toegevoegde shadcn-componenten
+ * direct in de huisstijl staan.
+ */
+@theme inline {
+  --font-sans: "SF Pro", "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  --color-app: var(--app-background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-solid: var(--surface-solid);
+  --color-surface-border: var(--surface-border);
+  --color-input-fill: var(--input-fill);
+  --color-input-stroke: var(--input-stroke);
+  --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-danger-text: var(--danger-text);
+  --color-danger-tint: var(--danger-tint);
+  --color-danger-stroke: var(--danger-stroke);
+  --color-warning: var(--warning);
+  --color-chip-active: var(--chip-active);
+  --color-chip-active-text: var(--chip-active-text);
+  --color-scrim: var(--scrim);
+
+  /* shadcn/ui-namen */
+  --color-background: var(--app-background);
+  --color-foreground: var(--text-strong);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text-strong);
+  --color-popover: var(--surface-solid);
+  --color-popover-foreground: var(--text-strong);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-secondary: var(--surface-raised);
+  --color-secondary-foreground: var(--text-strong);
+  --color-muted: var(--surface-raised);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--surface-raised);
+  --color-accent-foreground: var(--text-strong);
+  --color-destructive: var(--danger-text);
+  --color-border: var(--surface-border);
+  --color-input: var(--input-stroke);
+  --color-ring: var(--focus-ring);
+
+  /* Radiusreeks: veld 10, tegel 14, paneel 20, capsule */
+  --radius-field: 10px;
+  --radius-tile: 14px;
+  --radius-surface: 20px;
+
+  --shadow-surface: var(--shadow-surface);
+  --shadow-accent-glow: var(--shadow-accent-glow);
+}
+
+/* Typografie uit de dashboardstijl */
+@utility text-app-title {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+}
+@utility text-panel-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+@utility text-band-title {
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 700;
+}
+@utility text-stat-value {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@utility text-field-label {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+@utility text-app-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+@utility text-app-meta {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+/* AppBackground: navy met blauwe gloed linksboven en rode gloed rechts */
+@utility app-background {
+  background-color: var(--app-background);
+  background-image:
+    radial-gradient(60rem 40rem at -10% -15%, var(--app-glow-blue), transparent 60%),
+    radial-gradient(50rem 40rem at 110% 30%, var(--app-glow-red), transparent 60%);
+  background-attachment: fixed;
+}
+
+html,
+body {
+  background-color: var(--app-background);
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: none;
+}
