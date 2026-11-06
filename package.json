@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:db": "node scripts/test-database.mjs"
+    "test:db": "node scripts/test-database.mjs",
+    "test:login": "node --experimental-strip-types --no-warnings scripts/test-login-errors.mjs",
+    "test": "npm run test:db && npm run test:login"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.17",

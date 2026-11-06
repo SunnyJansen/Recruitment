@@ -20,6 +20,8 @@ jobs:
         run: npm ci
       - name: Databaseregels testen
         run: npm run test:db
+      - name: Inlogmeldingen testen
+        run: npm run test:login
       - name: Codecontrole (lint)
         run: npm run lint
       - name: App bouwen
