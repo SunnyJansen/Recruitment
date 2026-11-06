@@ -1,47 +1,24 @@
-# Inlogmail instellen
+# Inlogmail
 
-## Deel A — Inloglink die altijd werkt (verplicht, 2 minuten)
+**De standaardmail van Supabase werkt.** De inloglink werkt in elke browser
+en op elk apparaat, dus je hoeft niets aan te passen. (De app vraagt de link
+aan op een manier die niet aan één browser vastzit. De route wordt getest in
+`scripts/e2e/login.mjs`.)
 
-De standaardlink van Supabase werkt alleen in dezelfde browser waar je hem
-aanvroeg, en een virusscanner in je mailprogramma kan hem al "opgebruiken"
-voordat jij klikt. Met deze template opent de link een pagina met een knop
-**Log in**. Dat werkt in elke browser en op elk apparaat, ook vanaf je telefoon.
-
-1. Controleer eerst in Supabase → **Authentication → URL Configuration** dat de
-   **Site URL** je Vercel-adres is, **zonder `/` aan het eind**, bijvoorbeeld
-   `https://recruitment-xxxx.vercel.app`.
-2. Ga naar Supabase → **Authentication → Emails → Templates → Magic Link**.
-3. **Subject:** `Je inloglink voor Cr8las Recruitment`
-4. Vervang de hele **Body** door:
-
-```html
-<h2>Inloggen bij Cr8las Recruitment</h2>
-<p>Klik op de link en daarna op de knop <strong>Log in</strong>. De link werkt één keer en verloopt na een uur.</p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Inloggen</a></p>
-<p>Heb je dit niet aangevraagd? Dan kun je deze mail negeren.</p>
-```
-
-5. Klik **Save changes**.
-6. Test: vraag een nieuwe link aan, klik op **Inloggen** in de mail en daarna op **Log in**.
-
----
-
-## Deel B — Inlogmails zonder limiet: Supabase laten mailen via Resend
-
-**Waarom:** de ingebouwde mailserver van Supabase is alleen voor uitproberen.
-Hij verstuurt maximaal **2 mails per uur** voor het hele project. Met
-meerdere collega's kom je daar snel aan, en dan zie je "Het maximum aantal
-inlogmails per uur is bereikt". Resend hebben we in fase 7 toch nodig, dus we
-zetten het nu al in.
+Er is één beperking: de ingebouwde mailserver van Supabase verstuurt
+maximaal **2 mails per uur** voor het hele project. Met meerdere collega's
+kom je daar snel aan, en dan zie je "Het maximum aantal inlogmails per uur is
+bereikt". Hieronder staat hoe je dat oplost met Resend. Resend hebben we in
+fase 7 toch nodig.
 
 **Kosten:** Resend is gratis tot 3.000 mails per maand (100 per dag).
 
 ---
 
 ## Direct verder zonder Resend
-- Wacht een uur. Daarna kun je weer 2 inlogmails versturen.
 - Klik maar **één keer** op "Stuur inloglink" en gebruik de link uit de mail.
 - Na het inloggen blijf je lang ingelogd, dus je hebt niet elke dag een mail nodig.
+- Limiet bereikt? Wacht een uur.
 
 ---
 
@@ -79,6 +56,23 @@ zetten het nu al in.
 3. Klik **Save changes**.
 4. Supabase → **Authentication → Rate Limits** → zet **Rate limit for sending
    emails** op bijvoorbeeld `30` per uur → **Save**.
+
+## Stap 4 (optioneel) — Nederlandse inlogmail
+Met een eigen mailserver kun je de tekst van de mail aanpassen:
+Supabase → **Authentication → Emails → Templates → Magic Link**.
+
+- **Subject:** `Je inloglink voor Cr8las Recruitment`
+- **Body:**
+
+```html
+<h2>Inloggen bij Cr8las Recruitment</h2>
+<p>Klik op de link om in te loggen. De link werkt één keer en verloopt na een uur.</p>
+<p><a href="{{ .ConfirmationURL }}">Inloggen</a></p>
+<p>Heb je dit niet aangevraagd? Dan kun je deze mail negeren.</p>
+```
+
+Klik **Save changes**. Gebruik `{{ .ConfirmationURL }}` zoals hierboven, niet een
+zelfgemaakte link.
 
 ## Testen
 1. Open je Vercel-adres en vraag een inloglink aan.

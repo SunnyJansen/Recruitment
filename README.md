@@ -69,11 +69,10 @@ Terug in Supabase: **Authentication → URL Configuration**:
 
 Zonder deze stap werkt de inloglink uit de e-mail niet.
 
-### Stap 4 — Inlogmail (verplicht) en eigen mailserver (aanbevolen)
-Volg `docs/INLOGMAIL.md`:
-- **Deel A (verplicht):** de inlogmail aanpassen, zodat de link in elke browser werkt.
-- **Deel B (aanbevolen):** Supabase via Resend laten mailen. De ingebouwde mail
-  verstuurt maar 2 inlogmails per uur.
+### Stap 4 — Eigen mailserver (aanbevolen)
+De standaard-inlogmail werkt, maar de ingebouwde mail van Supabase verstuurt
+maximaal 2 inlogmails per uur. Volg `docs/INLOGMAIL.md` om Supabase via Resend
+te laten mailen.
 
 ---
 
@@ -81,7 +80,7 @@ Volg `docs/INLOGMAIL.md`:
 
 | Wat | Hoe |
 |---|---|
-| Databaseregels, lint en build | Automatisch bij elke push. GitHub → **Actions** → groen vinkje = in orde |
+| Databaseregels, inloggen (in een echte browser), lint en build | Automatisch bij elke push. GitHub → **Actions** → groen vinkje = in orde |
 | De app zelf | Je Vercel-adres openen in de browser |
 | Nieuwe versie | Vercel bouwt na elke push zelf een nieuwe versie (tabblad **Deployments**) |
 

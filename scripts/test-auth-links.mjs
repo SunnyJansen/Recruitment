@@ -2,7 +2,7 @@
  * Test van het doorsturen van inloglinks (lib/auth/auth-links.ts).
  * Gebruik:  npm run test:login
  */
-import { authRedirectFor, linkErrorKind, safeNext } from "../lib/auth/auth-links.ts";
+import { authRedirectFor, linkErrorKind, readLoginHash, safeNext } from "../lib/auth/auth-links.ts";
 
 const base = "https://recruitment-test.vercel.app";
 let failed = 0;
@@ -27,6 +27,10 @@ check("verlopen link herkend", linkErrorKind({ code: "otp_expired" }), "expired"
 check("onbekend → algemeen", linkErrorKind({ code: "iets_anders" }), "link");
 check("doorsturen naar andere website geblokkeerd", safeNext("//evil.example"), "/");
 check("intern pad toegestaan", safeNext("/berichten"), "/berichten");
+const h = readLoginHash("#access_token=AT&expires_in=3600&refresh_token=RT&token_type=bearer&type=magiclink");
+check("inloggegevens uit # gelezen (access)", h.accessToken, "AT");
+check("inloggegevens uit # gelezen (refresh)", h.refreshToken, "RT");
+check("fout uit # gelezen", readLoginHash("#error=access_denied&error_code=otp_expired").errorCode, "otp_expired");
 
 console.log(`\n${failed ? "Er zijn fouten" : "Alles geslaagd"} (${failed} mislukt)`);
 process.exit(failed ? 1 : 0);

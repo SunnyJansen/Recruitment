@@ -74,3 +74,14 @@ export const LINK_ERROR_MESSAGES: Record<LinkErrorKind, string> = {
     "De inloglink is verlopen of al gebruikt. Soms opent een virusscanner in je mailprogramma de link al. Vraag een nieuwe aan.",
   link: "Inloggen met deze link is mislukt. Vraag een nieuwe link aan.",
 };
+
+/** Leest inloggegevens of een fout uit het #-deel van het adres. */
+export function readLoginHash(hash: string) {
+  const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+  return {
+    accessToken: params.get("access_token"),
+    refreshToken: params.get("refresh_token"),
+    errorCode: params.get("error_code") ?? params.get("error"),
+    errorDescription: params.get("error_description"),
+  };
+}

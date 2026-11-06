@@ -6,9 +6,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LINK_ERROR_MESSAGES, linkErrorKind, type LinkErrorKind } from "@/lib/auth/auth-links";
+import {
+  LINK_ERROR_MESSAGES,
+  linkErrorKind,
+  readLoginHash,
+  type LinkErrorKind,
+} from "@/lib/auth/auth-links";
 import { describeLoginError } from "@/lib/auth/login-errors";
-import { createClient } from "@/lib/db/client";
+import { requestLoginLink } from "@/lib/auth/request-link";
 
 /** Supabase staat per e-mailadres maar één inlogmail per minuut toe. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -22,12 +27,16 @@ export function LoginForm({ next, initialError }: { next: string; initialError?:
       : null,
   );
 
-  // Supabase zet een fout bij een mislukte link soms achter een # in het adres.
+  // Supabase zet inloggegevens of een fout achter een # in het adres. Belandt
+  // de link hier (bijv. via de Site URL), dan alsnog afmaken op /auth/complete.
   useEffect(() => {
-    const hash = new URLSearchParams(window.location.hash.slice(1));
-    const code = hash.get("error_code") ?? hash.get("error");
-    if (!code) return;
-    const kind = linkErrorKind({ code, message: hash.get("error_description") });
+    const hash = readLoginHash(window.location.hash);
+    if (hash.accessToken) {
+      window.location.replace(`/auth/complete${window.location.search}${window.location.hash}`);
+      return;
+    }
+    if (!hash.errorCode) return;
+    const kind = linkErrorKind({ code: hash.errorCode, message: hash.errorDescription });
     // eslint-disable-next-line react-hooks/set-state-in-effect -- eenmalig lezen van de URL bij laden
     setError(LINK_ERROR_MESSAGES[kind]);
     history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -48,18 +57,7 @@ export function LoginForm({ next, initialError }: { next: string; initialError?:
     setState("sending");
     setError(null);
 
-    const supabase = createClient();
-    const redirectTo = new URL("/auth/callback", window.location.origin);
-    redirectTo.searchParams.set("next", next);
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        // Alleen collega's die al als gebruiker zijn toegevoegd mogen inloggen.
-        shouldCreateUser: false,
-        emailRedirectTo: redirectTo.toString(),
-      },
-    });
+    const { error } = await requestLoginLink(email, next);
 
     if (error) {
       const info = describeLoginError(error);

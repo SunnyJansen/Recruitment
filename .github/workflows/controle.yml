@@ -26,3 +26,12 @@ jobs:
         run: npm run lint
       - name: App bouwen
         run: npm run build
+      - name: Browser installeren voor inlogtest
+        run: npx playwright install --with-deps chromium
+      - name: Inloggen testen in een echte browser (met nep-Supabase)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_e2e_test_key_0000
+        run: |
+          npm run build
+          npm run test:e2e

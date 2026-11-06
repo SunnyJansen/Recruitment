@@ -71,7 +71,8 @@ Volledig schema: `supabase/migrations/`. Types: `lib/db/types.ts` (met de hand g
 ```
 
 ## Werkwijze
-- **Sunny installeert niets lokaal.** Testen gaat via de Vercel-deployment (automatisch na elke push) en GitHub Actions (`.github/workflows/controle.yml`: test:db, lint, build). Testinstructies dus altijd in browser-stappen: Vercel-adres, Supabase-dashboard, GitHub Actions. Nieuwe env-vars → in Vercel toevoegen + Redeploy. Database-wijzigingen → nieuw migratiebestand dat Sunny in de Supabase SQL Editor plakt.
+- **Sunny installeert niets lokaal.** Testen gaat via de Vercel-deployment (automatisch na elke push) en GitHub Actions (`.github/workflows/controle.yml`: test:db, test:login, lint, build, test:e2e). Testinstructies dus altijd in browser-stappen: Vercel-adres, Supabase-dashboard, GitHub Actions. Nieuwe env-vars → in Vercel toevoegen + Redeploy. Database-wijzigingen → nieuw migratiebestand dat Sunny in de Supabase SQL Editor plakt.
+- **Inloggen:** de link wordt aangevraagd met de implicit-flow (`lib/auth/request-link.ts`) zodat hij in elke browser werkt met de standaard Supabase-mail (templates aanpassen kan pas met eigen SMTP). Landing: `/auth/complete`. Niet terugzetten naar PKCE; `npm run test:e2e` bewaakt dit.
 - Volg `docs/PLAN.md` fase voor fase. Begin pas aan een volgende fase als de huidige werkt.
 - Schrijf per module een kleine test of testscript.
 - Gebruik **Unipile sandbox/testaccount** of een LinkedIn-account dat gemist kan worden tijdens ontwikkelen.
