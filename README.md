@@ -16,8 +16,9 @@ de fases.
 
 ## Stand van zaken
 
-- [x] **Fase 1 — Fundament**: Next.js, Sunny Apple-huisstijl, inloggen met
-  magic link, alle databasetabellen, lege pagina's.
+- [x] **Fase 1 — Fundament** (getest en werkend): Next.js, Sunny Apple-huisstijl,
+  alle databasetabellen, lege pagina's. Inloggen nu tijdelijk met teamwachtwoord;
+  inloggen met inlogmail is gebouwd en komt terug vóór fase 5.
 - [ ] Fase 2 — Vacatures & handmatige kandidaten
 
 ---

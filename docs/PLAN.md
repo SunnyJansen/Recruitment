@@ -11,7 +11,7 @@ Werk fase voor fase. Elke fase eindigt met iets dat je zelf kunt testen.
 - [ ] Node.js (LTS) en Git installeren, Claude Code installeren
 - [ ] Lege map maken, deze starter-bestanden erin zetten, `.env.example` kopiëren naar `.env.local` en invullen
 
-## Fase 1 — Fundament
+## Fase 1 — Fundament ✅ (afgerond 6 nov 2026, inloggen tijdelijk met teamwachtwoord)
 - Next.js + TypeScript + Tailwind + shadcn/ui opzetten
 - Supabase koppelen, login (e-mail magic link)
 - Migrations voor alle tabellen uit CLAUDE.md
