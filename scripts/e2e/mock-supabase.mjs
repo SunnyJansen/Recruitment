@@ -27,7 +27,7 @@ export function startMockSupabase(port) {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
-      requests.push({ method: req.method, url: req.url, auth: Boolean(req.headers.authorization), body });
+      requests.push({ method: req.method, url: req.url, auth: Boolean(req.headers.authorization), apikey: req.headers.apikey ?? "", body });
       if (req.method === "OPTIONS") {
         res.writeHead(204, cors);
         return res.end();

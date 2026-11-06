@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authRedirectFor } from "../auth/auth-links";
+import { isPasswordMode, isValidSiteCookie, SITE_COOKIE } from "../auth/site-password";
 
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "./env";
 
@@ -24,6 +25,24 @@ export async function updateSession(request: NextRequest) {
   if (!hasSupabaseEnv()) {
     if (pathname === "/setup") return NextResponse.next();
     return NextResponse.redirect(new URL("/setup", request.url));
+  }
+
+  // Tijdelijke wachtwoordmodus: één gedeeld wachtwoord i.p.v. inlogmail.
+  if (isPasswordMode()) {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      if (pathname === "/setup") return NextResponse.next();
+      return NextResponse.redirect(new URL("/setup", request.url));
+    }
+    const ok = await isValidSiteCookie(request.cookies.get(SITE_COOKIE)?.value);
+    if (ok && pathname === "/login") return NextResponse.redirect(new URL("/", request.url));
+    if (!ok && pathname !== "/login" && pathname !== "/setup") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      if (pathname !== "/") url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
   }
 
   // Inloglink op de verkeerde pagina beland? Code doorsturen i.p.v. weggooien.

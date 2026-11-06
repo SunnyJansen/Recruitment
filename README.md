@@ -69,6 +69,22 @@ Terug in Supabase: **Authentication → URL Configuration**:
 
 Zonder deze stap werkt de inloglink uit de e-mail niet.
 
+### Tijdelijk: inloggen met een teamwachtwoord (testmodus)
+Wil je het dashboard testen zonder inlogmail? Voeg in Vercel
+(**Settings → Environment Variables**) toe:
+
+| Name | Value |
+|---|---|
+| `SITE_PASSWORD` | een sterk wachtwoord (minstens 16 tekens, bijv. 4 losse woorden) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → **Project Settings → API Keys** → **Secret key** (`sb_secret_…`) |
+
+Daarna **Deployments → ⋯ → Redeploy**. Het inlogscherm vraagt nu alleen om het
+wachtwoord. Deel het alleen met collega's die het mogen gebruiken.
+
+**Terug naar de gewone login:** verwijder `SITE_PASSWORD` in Vercel en klik
+Redeploy. Dat moet uiterlijk vóór fase 5, want berichten goedkeuren kan alleen
+een persoonlijk ingelogde gebruiker (zo bewaakt de database regel 1).
+
 ### Stap 4 — Eigen mailserver (aanbevolen)
 De standaard-inlogmail werkt, maar de ingebouwde mail van Supabase verstuurt
 maximaal 2 inlogmails per uur. Volg `docs/INLOGMAIL.md` om Supabase via Resend

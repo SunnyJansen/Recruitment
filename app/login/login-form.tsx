@@ -94,6 +94,7 @@ export function LoginForm({ next, initialError }: { next: string; initialError?:
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <p className="-mt-2 text-[13px] text-muted-foreground">Je krijgt een inloglink per e-mail.</p>
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">E-mailadres</Label>
         <Input

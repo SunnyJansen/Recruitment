@@ -5,6 +5,7 @@ Antwoorden van Sunny Jansen op de startvragen (6 november 2026). Bij twijfel gaa
 ## Organisatie
 - **Bedrijf:** Cr8las, een bedrijf dat voor zichzelf werft (geen bureau, dus geen klantveld).
 - **Afzender:** Sunny Jansen, Projectmanager.
+- **Inloggen (tijdelijk):** testmodus met één teamwachtwoord (`SITE_PASSWORD`), omdat de inlogmail nog niet goed werkte. De gewone login met inlogmail komt later terug, uiterlijk vóór fase 5.
 - **Gebruikers:** meerdere collega's. Alleen e-mailadressen die een beheerder in Supabase toevoegt kunnen inloggen.
 - **Huisstijl:** design systeem *Sunny Apple*, dashboardstijl (zie `docs/DESIGN.md`).
 
