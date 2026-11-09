@@ -21,3 +21,9 @@ export function formatDateTime(value: string | Date | null | undefined) {
 export function daysAgoIso(days: number) {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
+
+/** Aantal minuten sinds een tijdstip (afgerond), of null. */
+export function minutesSince(value: string | null | undefined) {
+  if (!value) return null;
+  return Math.round((Date.now() - new Date(value).getTime()) / 60_000);
+}

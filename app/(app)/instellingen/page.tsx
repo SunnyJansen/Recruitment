@@ -18,7 +18,7 @@ function formatValue(value: unknown) {
 
 export default async function InstellingenPage() {
   const supabase = await createClient();
-  const { data: settings, error } = await supabase.from("settings").select("*").order("key");
+  const { data: settings, error } = await supabase.from("settings").select("*").not("key", "like", "status_%").order("key");
 
   return (
     <Panel

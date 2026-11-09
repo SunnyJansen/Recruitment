@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logActivity } from "@/lib/db/log";
 import type { Database, Json, SlotResult } from "@/lib/db/types";
 import { isOptOutReply } from "@/lib/domain/templates";
+import { STATUS_KEY } from "@/lib/queue/outreach-status";
 import { checkWorkingHours } from "@/lib/queue/schedule";
 import { loadSettings, type AppSettings } from "@/lib/settings";
 import { getUnipileConfig, UnipileError, unipileSetupProblem, type UnipileConfig } from "@/lib/unipile/client";
@@ -44,6 +45,15 @@ export type TickReport = {
 const dncHash = (value: string) => createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 const randomSeconds = (min: number, max: number) => Math.floor(min + Math.random() * (max - min + 1));
 const POOL_TARGET = 10; // zoveel kandidaten klaarzetten per campagne
+
+/** Waarom er nu niets gebeurt (voor de motorstatus op het scherm). */
+type Wait = { wait: string };
+const KIND_LABEL = { invite: "uitnodigingen", message: "berichten", search: "zoekresultaten" } as const;
+function waitFor(slot: SlotResult, kind: keyof typeof KIND_LABEL): Wait {
+  if (slot.reason === "daily_limit") return { wait: `Daglimiet bereikt: ${slot.used} van ${slot.limit} ${KIND_LABEL[kind]} vandaag. Morgen gaat het verder.` };
+  if (slot.reason === "weekly_limit") return { wait: `Weeklimiet bereikt: ${slot.used} van ${slot.limit} ${KIND_LABEL[kind]} deze week.` };
+  return { wait: `Willekeurige pauze: volgende actie over ±${slot.wait_seconds ?? 60} seconden.` };
+}
 
 /** Is het tijd voor een periodieke controle? Zo ja: volgende keer willekeurig plannen. */
 async function due(supabase: Db, key: "relations_check" | "chats_check", minSec: number, maxSec: number) {
@@ -181,11 +191,11 @@ async function checkConnections(supabase: Db, config: UnipileConfig, withdrawAft
     .select("id, full_name, linkedin_provider_id, linkedin_url")
     .in("id", invited.map((i) => i.candidate_id));
 
-  // Nieuwste connecties staan bovenaan; 3 pagina's (150) is ruim genoeg bij ±20 uitnodigingen per dag.
+  // Nieuwste connecties staan bovenaan; 5 pagina's is ruim genoeg bij ±10–20 uitnodigingen per dag.
   const ids = new Set<string>();
   const urls = new Set<string>();
   let cursor: string | null = null;
-  for (let page = 0; page < 3; page++) {
+  for (let page = 0; page < 5; page++) {
     const r = await listRelations(config, cursor);
     r.relations.forEach((rel) => {
       ids.add(rel.userId);
@@ -234,7 +244,7 @@ async function activeCampaignIds(supabase: Db) {
   return data ?? [];
 }
 
-async function sendNextMessage(supabase: Db, config: UnipileConfig, s: AppSettings, campaignIds: string[]): Promise<string | "wait" | null> {
+async function sendNextMessage(supabase: Db, config: UnipileConfig, s: AppSettings, campaignIds: string[]): Promise<string | Wait | null> {
   const { data: next } = await supabase
     .from("candidate_vacancy")
     .select("candidate_id, vacancy_id, campaign_id, stage")
@@ -252,7 +262,7 @@ async function sendNextMessage(supabase: Db, config: UnipileConfig, s: AppSettin
   }
 
   const slot = await takeSlot(supabase, s, "message", { candidate_id: cand.id });
-  if (!slot.ok) return "wait";
+  if (!slot.ok) return waitFor(slot, "message");
 
   // De goedgekeurde tekst, ingevuld door de database (zelfde functie als de controle).
   const { data: body } = await supabase.rpc("render_campaign_message", { p_campaign_id: link.campaign_id, p_candidate_id: cand.id });
@@ -323,7 +333,7 @@ async function inviteNotesAvailable(supabase: Db, s: AppSettings) {
   return (count ?? 0) < s.maxInviteNotesPerWeek;
 }
 
-async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSettings, campaignIds: string[]): Promise<string | "wait" | null> {
+async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSettings, campaignIds: string[]): Promise<string | Wait | null> {
   const { data: next } = await supabase
     .from("candidate_vacancy")
     .select("candidate_id, vacancy_id, campaign_id, stage")
@@ -341,7 +351,7 @@ async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSetting
   }
 
   const slot = await takeSlot(supabase, s, "invite", { candidate_id: cand.id });
-  if (!slot.ok) return "wait";
+  if (!slot.ok) return waitFor(slot, "invite");
 
   // Korte, goedgekeurde tekst erbij zolang het weektegoed (gratis LinkedIn: ±15) het toelaat.
   let note: string | null = null;
@@ -427,7 +437,7 @@ async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSetting
 
 type CampaignRow = Awaited<ReturnType<typeof activeCampaignIds>>[number];
 
-async function refillCampaign(supabase: Db, config: UnipileConfig, s: AppSettings, campaigns: CampaignRow[]): Promise<string | "wait" | null> {
+async function refillCampaign(supabase: Db, config: UnipileConfig, s: AppSettings, campaigns: CampaignRow[]): Promise<string | Wait | null> {
   for (const c of campaigns) {
     if (c.search_exhausted) continue;
     const { count } = await supabase
@@ -438,7 +448,7 @@ async function refillCampaign(supabase: Db, config: UnipileConfig, s: AppSetting
     if ((count ?? 0) >= POOL_TARGET) continue;
 
     const slot = await takeSlot(supabase, s, "search", { campaign_id: c.id });
-    if (!slot.ok) return "wait";
+    if (!slot.ok) return waitFor(slot, "search");
 
     const q = (c.search_query ?? {}) as { keywords?: string; title?: string; location_ids?: string[]; network_distance?: (1 | 2 | 3)[] };
     const result = await searchPeople(config, {
@@ -541,7 +551,35 @@ async function refillCampaign(supabase: Db, config: UnipileConfig, s: AppSetting
 // De tik
 // ---------------------------------------------------------------------------
 
+/** Laatste tik bewaren, zodat de campagnepagina kan laten zien wat de motor doet. */
+async function saveStatus(supabase: Db, report: TickReport) {
+  const value = { ...report, at: new Date().toISOString() } as unknown as Json;
+  const { error } = await supabase.from("settings").update({ value }).eq("key", STATUS_KEY);
+  if (error) console.error("Motorstatus opslaan mislukt:", error.message);
+  const { data } = await supabase.from("settings").select("key").eq("key", STATUS_KEY).maybeSingle();
+  if (!data) await supabase.from("settings").insert({ key: STATUS_KEY, value, description: "Laatste automatische stap (wordt door de app bijgewerkt)." });
+}
+
+
 export async function runOutreachTick(supabase: Db): Promise<TickReport> {
+  const report = await tick(supabase);
+  await saveStatus(supabase, report);
+  return report;
+}
+
+/** Een controle die mislukt mag het uitnodigen en berichten sturen niet blokkeren. */
+async function safely(supabase: Db, label: string, fn: () => Promise<string[]>): Promise<string[]> {
+  try {
+    return await fn();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`${label} mislukt:`, message);
+    await logActivity(supabase, { actor: "system", action: "outreach_error", entity: "system", details: { step: label, message } });
+    return [`${label} mislukt: ${message}`];
+  }
+}
+
+async function tick(supabase: Db): Promise<TickReport> {
   const steps: string[] = [];
   const { config } = getUnipileConfig();
   if (!config) return { state: "error", steps, message: unipileSetupProblem() ?? "Unipile is niet ingesteld." };
@@ -559,13 +597,15 @@ export async function runOutreachTick(supabase: Db): Promise<TickReport> {
 
   try {
     // 1. Reacties (lezen): elke 5–12 minuten.
-    if (await due(supabase, "chats_check", 300, 720)) steps.push(...(await checkReplies(supabase, config)));
+    if (await due(supabase, "chats_check", 300, 720)) steps.push(...(await safely(supabase, "Reacties ophalen", () => checkReplies(supabase, config))));
 
     const work = checkWorkingHours(new Date(), s.schedule);
     if (!work.open) return { state: "paused", steps, message: work.reason };
 
     // 2. Connecties: een paar keer per dag, op willekeurige momenten (2–4 uur).
-    if (await due(supabase, "relations_check", 7200, 14400)) steps.push(...(await checkConnections(supabase, config, withdrawAfterDays)));
+    if (await due(supabase, "relations_check", 7200, 14400)) {
+      steps.push(...(await safely(supabase, "Connecties controleren", () => checkConnections(supabase, config, withdrawAfterDays))));
+    }
 
     if (!campaigns.length) return { state: steps.length ? "done" : "idle", steps };
     const ids = campaigns.map((c) => c.id);
@@ -577,7 +617,7 @@ export async function runOutreachTick(supabase: Db): Promise<TickReport> {
       () => refillCampaign(supabase, config, s, campaigns),
     ]) {
       const r = await action();
-      if (r === "wait") return { state: "waiting", steps, message: "Wacht op pauze of daglimiet." };
+      if (r && typeof r === "object") return { state: "waiting", steps, message: r.wait };
       if (r) {
         steps.push(r);
         return { state: "done", steps };

@@ -10,10 +10,13 @@ import type { CampaignQuery, OutreachStatus } from "@/lib/db/types";
 import { isUuid } from "@/lib/domain/form-state";
 import { readRequirements } from "@/lib/domain/forms";
 import { DEFAULT_INVITE_NOTE_EN, DEFAULT_INVITE_NOTE_NL, DEFAULT_TEMPLATE_EN, DEFAULT_TEMPLATE_NL } from "@/lib/domain/templates";
+import { minutesSince } from "@/lib/format";
+import { STATUS_KEY } from "@/lib/queue/outreach-status";
 import { loadSettings } from "@/lib/settings";
 import { unipileSetupProblem } from "@/lib/unipile/client";
 
 import { CampaignClient } from "./campaign-client";
+import { type EngineStatus, EngineStatusPanel, type OutreachRow, OutreachTable } from "./outreach-overview";
 
 export const metadata = { title: "Automatisch benaderen — Cr8las Recruitment" };
 
@@ -28,7 +31,11 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
   const [{ data: campaign }, { data: links }, { data: settingRows }, settings, { data: invitesToday }, { data: messagesToday }] =
     await Promise.all([
       supabase.from("campaigns").select("*").eq("vacancy_id", id).maybeSingle(),
-      supabase.from("candidate_vacancy").select("outreach_status").eq("vacancy_id", id).not("outreach_status", "is", null),
+      supabase
+        .from("candidate_vacancy")
+        .select("candidate_id, outreach_status, outreach_error, invited_at, connected_at, messaged_at, replied_at, created_at")
+        .eq("vacancy_id", id)
+        .not("outreach_status", "is", null),
       supabase.from("settings").select("key, value").in("key", ["sender_name", "sender_title", "company_name"]),
       loadSettings(supabase),
       supabase.rpc("linkedin_count", { p_kind: "invite", p_period: "day" }),
@@ -37,6 +44,40 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
 
   const counts: Record<OutreachStatus, number> = { pending: 0, invited: 0, connected: 0, messaged: 0, replied: 0, failed: 0, skipped: 0 };
   for (const l of links ?? []) if (l.outreach_status) counts[l.outreach_status]++;
+
+  // Overzicht: wie is (of wordt) benaderd. Meest recente actie eerst, "klaar" onderaan.
+  const lastOf = (l: NonNullable<typeof links>[number]) =>
+    [l.replied_at, l.messaged_at, l.connected_at, l.invited_at].filter(Boolean).sort().at(-1) ?? null;
+  const sorted = [...(links ?? [])].sort((a, b) => (lastOf(b) ?? "").localeCompare(lastOf(a) ?? "") || a.created_at.localeCompare(b.created_at));
+  const shown = sorted.slice(0, 200);
+  const shownIds = shown.map((l) => l.candidate_id);
+  const [{ data: rowCands }, { data: inviteNotes }, { data: statusRow }] = await Promise.all([
+    shownIds.length
+      ? supabase.from("candidates").select("id, full_name, headline, location, linkedin_url").in("id", shownIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string; headline: string | null; location: string | null; linkedin_url: string | null }[] }),
+    shownIds.length
+      ? supabase.from("messages").select("candidate_id").eq("channel", "linkedin_invite").eq("status", "sent").eq("vacancy_id", id).in("candidate_id", shownIds)
+      : Promise.resolve({ data: [] as { candidate_id: string }[] }),
+    supabase.from("settings").select("value").eq("key", STATUS_KEY).maybeSingle(),
+  ]);
+  const candById = new Map((rowCands ?? []).map((c) => [c.id, c]));
+  const withNote = new Set((inviteNotes ?? []).map((m) => m.candidate_id));
+  const rows: OutreachRow[] = shown.map((l) => {
+    const c = candById.get(l.candidate_id);
+    return {
+      candidateId: l.candidate_id,
+      name: c?.full_name ?? "Onbekend",
+      headline: c?.headline ?? null,
+      location: c?.location ?? null,
+      linkedinUrl: c?.linkedin_url ?? null,
+      status: l.outreach_status!,
+      error: l.outreach_error,
+      invitedAt: l.invited_at,
+      lastAt: lastOf(l),
+      withNote: l.invited_at ? withNote.has(l.candidate_id) : null,
+    };
+  });
+  const engine = (statusRow?.value ?? null) as unknown as EngineStatus;
   const setting = (k: string) => {
     const val = settingRows?.find((r) => r.key === k)?.value;
     return typeof val === "string" ? val : "";
@@ -87,6 +128,10 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
           { label: "Klaar om uit te nodigen", value: counts.pending, note: counts.failed ? `${counts.failed} mislukt/verlopen` : undefined },
         ]}
       />
+
+      <EngineStatusPanel status={engine} minutesAgo={minutesSince(engine?.at)} />
+
+      <OutreachTable rows={rows} total={links?.length ?? 0} />
 
       <CampaignClient
         vacancyId={id}

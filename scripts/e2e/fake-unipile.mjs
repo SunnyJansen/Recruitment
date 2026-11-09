@@ -38,6 +38,7 @@ export async function startFakeUnipile(port) {
     invited: [], // user_ids met een uitnodiging
     notesSent: 0, // uitnodigingen mét tekst
     noteLimit: Infinity, // zoals LinkedIn: daarna weigert het uitnodigingen mét tekst
+    brokenReads: false, // test: gesprekken/connecties ophalen faalt
     relations: [], // user_ids die geaccepteerd hebben (oudste eerst)
     chats: new Map(), // chat_id → { userId, messages: [{ id, text, is_sender, timestamp }] }
   };
@@ -112,6 +113,9 @@ export async function startFakeUnipile(port) {
       }
 
       // ---- Benaderen: uitnodigingen, connecties, gesprekken (v2) ----
+      if (state.brokenReads && req.method === "GET" && (rest === "chats" || rest === "users/me/relations")) {
+        return error(400, "api/invalid_parameters", "Invalid parameters", "querystring/limit must be <= 20");
+      }
       if (req.method === "POST" && rest === "users/me/relation-requests") {
         const body = raw ? JSON.parse(raw) : {};
         if (!body.user_id) return error(400, "api/invalid_parameters", "Invalid parameters", "body must have required property 'user_id'");

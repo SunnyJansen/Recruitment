@@ -129,6 +129,9 @@ try {
   check("verkeerde sleutel geweigerd", (await tick({ authorization: "Bearer fout-fout-fout-fout-fout" })).status === 401);
 
   console.log("Dag 1: zoeken en uitnodigen (max. 4 per dag, 2 mét tekst):");
+  // Situatie bij Sunny: reacties/connecties ophalen faalt bij Unipile. Uitnodigen moet tóch doorgaan.
+  unipile.state.brokenReads = true;
+  await forceCheck("relations_check");
   const first = await tickUntil(async (r) => r.body.steps?.some((s) => /nieuwe kandidaten gevonden/.test(s)));
   check("eerste tik zoekt kandidaten", Boolean(first), JSON.stringify(first?.body));
   check("10 kandidaten klaargezet", (await q(`select count(*)::int as n from candidate_vacancy where outreach_status = 'pending'`))[0].n === 10);
@@ -146,8 +149,24 @@ try {
   check("database: 2 uitnodigingsteksten verzonden, 1 mislukt", (await q(`select count(*)::int as n from messages where channel = 'linkedin_invite' and status = 'sent'`))[0].n === 2 && (await q(`select count(*)::int as n from messages where channel = 'linkedin_invite' and status = 'failed'`))[0].n === 1);
   check("tekst-uitnodigingen een week gepauzeerd", (await q(`select next_at > now() + interval '6 days' as b from rate_state where key = 'invite_notes'`))[0].b === true);
   check("fase → benaderd", (await q(`select count(*)::int as n from candidate_vacancy where outreach_status = 'invited' and stage = 'contacted'`))[0].n === 3);
+  await forceCheck("chats_check");
+  await forceCheck("relations_check");
   const extra = await tick();
+  check("ophalen faalt, maar de stap loopt door (geen 'error')", extra.body.state !== "error" && extra.body.steps?.some((st) => /Reacties ophalen mislukt/.test(st)) && extra.body.steps?.some((st) => /Connecties controleren mislukt/.test(st)), JSON.stringify(extra.body));
   check("daglimiet: geen 5e poging", extra.body.state === "waiting" && unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length === 4, JSON.stringify(extra.body));
+  check("daglimiet duidelijk gemeld", /Daglimiet bereikt: 4 van 4 uitnodigingen/.test(extra.body.message ?? ""), extra.body.message);
+  check("mislukt ophalen blokkeerde het uitnodigen niet", (await q(`select count(*)::int as n from activity_log where action = 'outreach_error'`))[0].n >= 1);
+  unipile.state.brokenReads = false;
+
+  console.log("Overzicht op de campagnepagina:");
+  await page.goto(`${APP}/vacatures/${vac.id}/automatisch`, { waitUntil: "networkidle" });
+  check("motorstatus: laatste stap zichtbaar", (await seen(page.getByText(/Laatste keer:/))) && (await seen(page.getByText(/Daglimiet bereikt/))));
+  const table = page.getByRole("table").filter({ visible: true });
+  check("tabel: 3 uitgenodigd", (await table.getByText("Uitgenodigd", { exact: true }).count()) === 3);
+  check("tabel: met en zonder tekst", (await table.getByText("met tekst", { exact: true }).count()) === 2 && (await table.getByText("zonder tekst", { exact: true }).count()) === 1);
+  check("tabel: nog 7 klaar om uit te nodigen", (await table.getByText("Klaar om uit te nodigen", { exact: true }).count()) === 7);
+  check("tabel: link naar LinkedIn-profiel", (await table.getByRole("link", { name: /LinkedIn-profiel van/ }).count()) === 10);
+  await shot("1b-benaderde-kandidaten");
 
   console.log("Kandidaten accepteren → bericht:");
   const [jan, kees] = [FAKE_PEOPLE[0], FAKE_PEOPLE[3]]; // Jan (NL) en Thabo (ZA) zitten in de eerste 3 uitnodigingen? controleren:

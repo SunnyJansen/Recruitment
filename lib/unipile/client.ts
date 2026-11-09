@@ -81,7 +81,7 @@ export function explainUnipileError(status: number, type: string | null, detail?
       return "Dit LinkedIn-account of abonnement mag deze actie niet uitvoeren.";
     case "api/invalid_parameters":
     case "provider/invalid_parameters":
-      return `Unipile begreep de zoekopdracht niet (ongeldige filters).${detail ? ` ${detail}` : ""}`;
+      return `Unipile weigerde het verzoek (ongeldige parameters).${detail ? ` ${detail}` : ""}`;
     case "provider/resource_not_found":
       return "Niet gevonden bij LinkedIn (profiel bestaat niet meer of is afgeschermd).";
     case "api/resource_not_found":

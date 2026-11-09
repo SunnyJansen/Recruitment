@@ -82,8 +82,9 @@ export async function sendRelationRequest(config: UnipileConfig, userId: string,
 
 /** Eigen connecties, nieuwste eerst (GET users/me/relations). */
 export async function listRelations(config: UnipileConfig, cursor?: string | null) {
+  // Geen `limit`: het maximum verschilt per provider; de standaard van Unipile is veilig.
   const raw = await unipileRequest<RawRelationsResponse>(config, "users/me/relations", {
-    query: { limit: 50, cursor: cursor ?? undefined },
+    query: { cursor: cursor ?? undefined },
   });
   return mapRelations(raw);
 }
@@ -106,7 +107,7 @@ export async function startChat(config: UnipileConfig, userId: string, text: str
  */
 export async function listRecentChats(config: UnipileConfig) {
   const raw = await unipileRequest<RawChatsResponse>(config, "chats", {
-    query: { type: "1to1", limit: 50 },
+    query: { type: "1to1" },
   });
   return mapChats(raw);
 }
@@ -114,7 +115,7 @@ export async function listRecentChats(config: UnipileConfig) {
 /** Berichten in een gesprek (GET chats/{id}/messages), eventueel sinds een tijdstip. */
 export async function listIncomingMessages(config: UnipileConfig, chatId: string, after: string | null) {
   const raw = await unipileRequest<RawMessagesResponse>(config, `chats/${encodeURIComponent(chatId)}/messages`, {
-    query: { limit: 20, after: after ?? undefined },
+    query: { after: after ?? undefined },
   });
   return incomingMessages(raw);
 }

@@ -61,3 +61,24 @@ export const WELDING_PROCESSES = [
 ] as const;
 
 export const MATERIALS = ["Staal", "RVS", "Aluminium", "Duplex", "Koper", "Titanium"] as const;
+
+export const OUTREACH_STATUS: Record<
+  "pending" | "invited" | "connected" | "messaged" | "replied" | "failed" | "skipped",
+  { label: string; tone: BadgeTone }
+> = {
+  pending: { label: "Klaar om uit te nodigen", tone: "gray" },
+  invited: { label: "Uitgenodigd", tone: "blue" },
+  connected: { label: "Verbonden", tone: "blue" },
+  messaged: { label: "Bericht gestuurd", tone: "blue" },
+  replied: { label: "Gereageerd", tone: "green" },
+  failed: { label: "Mislukt", tone: "red" },
+  skipped: { label: "Overgeslagen", tone: "gray" },
+};
+
+export const ENGINE_STATE: Record<string, { label: string; tone: BadgeTone }> = {
+  done: { label: "Actie uitgevoerd", tone: "green" },
+  waiting: { label: "Wacht", tone: "blue" },
+  paused: { label: "Gepauzeerd", tone: "gray" },
+  idle: { label: "Niets te doen", tone: "gray" },
+  error: { label: "Fout", tone: "red" },
+};
