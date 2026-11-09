@@ -139,6 +139,24 @@ await expectOk("kandidaat A", () => db.query(`insert into candidates (full_name,
 await expectError("tweede kandidaat met zelfde LinkedIn-id wordt geweigerd", () =>
   db.query(`insert into candidates (full_name, linkedin_provider_id) values ('A', 'ACoDUP')`), /unique|duplicate/i);
 
+console.log("\nFase 2:");
+await expectOk("kandidaat met LinkedIn-link", () =>
+  db.query(`insert into candidates (full_name, linkedin_url) values ('B', 'https://www.linkedin.com/in/b-lasser')`));
+await expectError("tweede kandidaat met dezelfde LinkedIn-link wordt geweigerd", () =>
+  db.query(`insert into candidates (full_name, linkedin_url) values ('B2', 'https://www.linkedin.com/in/b-lasser')`), /unique|duplicate/i);
+await expectOk("meerdere kandidaten zonder LinkedIn-link mogen", () =>
+  db.query(`insert into candidates (full_name) values ('Zonder 1'), ('Zonder 2')`));
+
+await expectOk("handmatige kandidaat (alleen LinkedIn-link) afmelden", () =>
+  db.query(`update candidates set status = 'opted_out' where linkedin_url = 'https://www.linkedin.com/in/b-lasser'`));
+const dncUrl = (await db.query(`select count(*)::int as n from do_not_contact where kind = 'linkedin_url'`)).rows[0].n;
+dncUrl === 1 ? ok("LinkedIn-link (als hash) op niet-benaderen-lijst") : fail("LinkedIn-link op lijst", dncUrl);
+await expectError("afgemelde kandidaat kan niet terug naar actief", () =>
+  db.query(`update candidates set status = 'active' where linkedin_url = 'https://www.linkedin.com/in/b-lasser'`), /AVG/);
+await db.query(`delete from candidates where linkedin_url = 'https://www.linkedin.com/in/b-lasser'`);
+const readded = (await db.query(`insert into candidates (full_name, linkedin_url) values ('B opnieuw', 'https://www.linkedin.com/in/b-lasser') returning status`)).rows[0];
+readded.status === "opted_out" ? ok("opnieuw toevoegen met zelfde LinkedIn-link → meteen afgemeld") : fail("opnieuw toevoegen", readded.status);
+
 console.log("\nLogboek en beveiliging:");
 await expectOk("gebruiker schrijft in activity_log", () =>
   db.query(`insert into activity_log (actor, actor_id, action, entity) values ('user', $1, 'test', 'test')`, [USER]));

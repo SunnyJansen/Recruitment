@@ -19,7 +19,10 @@ de fases.
 - [x] **Fase 1 — Fundament** (getest en werkend): Next.js, Sunny Apple-huisstijl,
   alle databasetabellen, lege pagina's. Inloggen nu tijdelijk met teamwachtwoord;
   inloggen met inlogmail is gebouwd en komt terug vóór fase 5.
-- [ ] Fase 2 — Vacatures & handmatige kandidaten
+- [x] **Fase 2 — Vacatures & handmatige kandidaten** (gebouwd, wacht op jouw test):
+  vacatures met lasprocessen/materialen/eisen, kandidaten toevoegen zonder
+  dubbelen, koppelen, fase wijzigen, tijdlijn, afmelden.
+  **Database-update nodig:** `supabase/migrations/20261109000000_fase2_kandidaten.sql`
 
 ---
 

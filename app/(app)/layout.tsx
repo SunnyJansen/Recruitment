@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { NavTabs } from "@/components/ui/nav-tabs";
+import { NavTabs, NavTabsFallback } from "@/components/ui/nav-tabs";
 import { getCurrentUser } from "@/lib/db/server";
 
 const NAV = [
@@ -32,7 +32,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <header className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-surface border border-surface-border bg-surface px-5 py-3 shadow-surface backdrop-blur-[24px]">
         <h1 className="text-app-title">Cr8las Recruitment</h1>
-        <NavTabs items={NAV} />
+        <Suspense fallback={<NavTabsFallback items={NAV} />}>
+          <NavTabs items={NAV} />
+        </Suspense>
         <div className="ml-auto flex items-center gap-2">
           <Suspense fallback={null}>
             <UserMenu />

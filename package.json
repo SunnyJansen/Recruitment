@@ -9,8 +9,9 @@
     "lint": "eslint",
     "test:db": "node scripts/test-database.mjs",
     "test:login": "node --experimental-strip-types --no-warnings scripts/test-login-errors.mjs && node --experimental-strip-types --no-warnings scripts/test-auth-links.mjs && node --experimental-strip-types --no-warnings scripts/test-site-password.mjs",
-    "test": "npm run test:db && npm run test:login",
-    "test:e2e": "node scripts/e2e/login.mjs"
+    "test": "npm run test:db && npm run test:login && npm run test:forms",
+    "test:e2e": "node scripts/e2e/login.mjs && node scripts/e2e/fase2.mjs",
+    "test:forms": "node --experimental-strip-types --no-warnings scripts/test-forms.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.17",

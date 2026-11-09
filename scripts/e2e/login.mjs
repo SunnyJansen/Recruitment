@@ -15,7 +15,7 @@ import { existsSync } from "node:fs";
 
 import { chromium } from "playwright";
 
-import { startMockSupabase } from "./mock-supabase.mjs";
+import { startFakeSupabase } from "./fake-supabase.mjs";
 
 const MOCK_PORT = 54321;
 const BASE_ENV = {
@@ -56,7 +56,7 @@ async function startApp(port, extraEnv = {}) {
   return { url, stop };
 }
 
-const { server, requests } = await startMockSupabase(MOCK_PORT);
+const { server, requests } = await startFakeSupabase(MOCK_PORT);
 const executablePath = existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const apps = [];
