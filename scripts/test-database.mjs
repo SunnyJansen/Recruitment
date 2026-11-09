@@ -187,6 +187,41 @@ c1[0]?.provider_id === "ACoA1" && c2[0]?.provider_id === "ACoA2" && c3.length ==
   : fail("wachtrij", JSON.stringify([c1, c2, c3]));
 await db.exec(asUser);
 
+console.log("\nAutomatisch benaderen (campagnes, regel 1):");
+await db.exec(asSystem);
+const vac2 = (await db.query(`insert into vacancies (title, location) values ('TIG-lasser', 'Venlo') returning id`)).rows[0].id;
+const nlCand = (await db.query(`insert into candidates (full_name, language) values ('Jan Bakker', 'nl') returning id`)).rows[0].id;
+const enCand = (await db.query(`insert into candidates (full_name, language) values ('Thabo Nkosi', 'en') returning id`)).rows[0].id;
+const camp = (await db.query(`insert into campaigns (vacancy_id, template_nl, template_en) values ($1,
+  'Hoi {voornaam}, ik vond je profiel op LinkedIn. We zoeken een {functie} in {plaats}. Groet, {afzender} ({afzender_functie}, {bedrijf}). Geen interesse? Laat het weten.',
+  'Hi {voornaam}, I found your profile on LinkedIn. We are looking for a {functie} in {plaats}. Not interested? Let me know.') returning id`, [vac2])).rows[0].id;
+await expectError("actief zetten zonder goedkeuring wordt geweigerd", () =>
+  db.query(`update campaigns set status = 'active' where id = $1`, [camp]), /goedkeuring/);
+const render = async (cand) => (await db.query(`select public.render_campaign_message($1, $2) as t`, [camp, cand])).rows[0].t;
+const nlText = await render(nlCand);
+nlText === "Hoi Jan, ik vond je profiel op LinkedIn. We zoeken een TIG-lasser in Venlo. Groet, Sunny Jansen (Projectmanager, Cr8las). Geen interesse? Laat het weten."
+  ? ok("tekst ingevuld (NL, met afzender uit instellingen)") : fail("tekst ingevuld NL", nlText);
+(await render(enCand)).startsWith("Hi Thabo,") ? ok("Engelse tekst voor Engelstalige kandidaat") : fail("Engelse tekst", await render(enCand));
+await expectError("bericht uit niet-goedgekeurde campagne wordt geweigerd", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_message','out',$4,'approved')`, [nlCand, vac2, camp, nlText]), /niet actief/);
+await expectOk("goedkeuren in testmodus (zonder login) met label", () =>
+  db.query(`update campaigns set approved_at = now(), approved_by_label = 'Teamwachtwoord', status = 'active' where id = $1`, [camp]));
+await expectOk("bericht met exact de goedgekeurde tekst mag automatisch", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_message','out',$4,'approved')`, [nlCand, vac2, camp, nlText]));
+await expectError("afwijkende tekst wordt geweigerd", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_message','out',$4,'approved')`, [enCand, vac2, camp, "Hi Thabo, iets anders!"]), /wijkt af/);
+await expectOk("automatisch bericht mag daarna als verzonden gemarkeerd worden", () =>
+  db.query(`update messages set status = 'sent', sent_at = now() where campaign_id = $1`, [camp]));
+await expectOk("tekst wijzigen na goedkeuring", () =>
+  db.query(`update campaigns set template_nl = template_nl || ' Extra zin.' where id = $1`, [camp]));
+const afterEdit = (await db.query(`select status, approved_at from campaigns where id = $1`, [camp])).rows[0];
+afterEdit.status === "draft" && afterEdit.approved_at === null ? ok("na wijzigen: goedkeuring vervalt en campagne stopt") : fail("goedkeuring vervalt", JSON.stringify(afterEdit));
+await expectError("na wijzigen geen automatische berichten meer", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_message','out',$4,'approved')`, [enCand, vac2, camp, "x"]), /niet actief/);
+await expectOk("binnenkomend bericht mag altijd", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, channel, direction, body, status) values ($1,$2,'linkedin_message','in','Ja, interessant!','received')`, [nlCand, vac2]));
+await db.exec(asUser);
+
 console.log("\nLogboek en beveiliging:");
 await expectOk("gebruiker schrijft in activity_log", () =>
   db.query(`insert into activity_log (actor, actor_id, action, entity) values ('user', $1, 'test', 'test')`, [USER]));
