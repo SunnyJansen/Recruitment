@@ -167,3 +167,46 @@ export function profileToCandidate(p: RawProfile, fallbackName?: string): Import
     experience,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Connecties, gesprekken en berichten (Unipile v2)
+// ---------------------------------------------------------------------------
+
+export type RawRelationsResponse = {
+  data?: { id?: string; created_at?: string; user?: { id?: string; public_identifier?: string | null; profile_url?: string | null } }[];
+  next_cursor?: string | null;
+};
+
+/** Connecties (GET users/me/relations) → LinkedIn-id + profiellink. */
+export function mapRelations(raw: RawRelationsResponse) {
+  return {
+    relations: (raw.data ?? [])
+      .filter((r) => r.user?.id)
+      .map((r) => ({ userId: r.user!.id!, profileUrl: profileUrlOf(r.user!), createdAt: r.created_at ?? null })),
+    cursor: raw.next_cursor || null,
+  };
+}
+
+export type RawChatsResponse = {
+  data?: { id: string; user_id?: string | null; type?: string; is_1to1?: boolean; last_message_timestamp?: string | null }[];
+  next_cursor?: string | null;
+};
+
+/** Gesprekken (GET chats) → alleen 1-op-1 met de andere deelnemer. */
+export function mapChats(raw: RawChatsResponse) {
+  return (raw.data ?? [])
+    .filter((c) => c.id && c.user_id && (c.is_1to1 ?? c.type === "1to1"))
+    .map((c) => ({ chatId: c.id, userId: c.user_id!, lastMessageAt: c.last_message_timestamp ?? null }));
+}
+
+export type RawMessagesResponse = {
+  data?: { id: string; text?: string | null; sender_id?: string; is_sender?: boolean; timestamp?: string; is_event?: boolean; is_deleted?: boolean }[];
+};
+
+/** Berichten in een gesprek → alleen echte berichten van de ander (niet van ons). */
+export function incomingMessages(raw: RawMessagesResponse) {
+  return (raw.data ?? [])
+    .filter((m) => m.id && m.is_sender === false && !m.is_event && !m.is_deleted && (m.text ?? "").trim())
+    .map((m) => ({ messageId: m.id, text: m.text!.trim(), at: m.timestamp ?? new Date().toISOString(), senderId: m.sender_id ?? null }))
+    .sort((a, b) => a.at.localeCompare(b.at));
+}

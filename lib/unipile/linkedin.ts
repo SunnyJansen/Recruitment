@@ -1,6 +1,16 @@
 import "server-only";
 
-import { mapSearchResponse, type RawProfile, type RawSearchResponse } from "./map";
+import {
+  incomingMessages,
+  mapChats,
+  mapRelations,
+  mapSearchResponse,
+  type RawChatsResponse,
+  type RawMessagesResponse,
+  type RawProfile,
+  type RawRelationsResponse,
+  type RawSearchResponse,
+} from "./map";
 import { unipileRequest, type UnipileConfig } from "./client";
 
 /** Locatie-ID's opzoeken voor de zoekfilter (GET /v2/{acc}/linkedin/search/parameters). */
@@ -52,4 +62,58 @@ export async function getProfile(config: UnipileConfig, userId: string) {
   return unipileRequest<RawProfile>(config, `users/${encodeURIComponent(userId)}`, {
     query: { with_sections: ["linkedin_*_preview"], variant: "linkedin_classic" },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Automatisch benaderen (geverifieerd in docs/UNIPILE.md, sectie "Benaderen")
+// ---------------------------------------------------------------------------
+
+/**
+ * Uitnodiging sturen (POST users/me/relation-requests). Zonder bericht:
+ * een gratis LinkedIn-account mag maar ±5 uitnodigingen mét bericht per maand.
+ */
+export async function sendRelationRequest(config: UnipileConfig, userId: string) {
+  return unipileRequest<{ id: string }>(config, "users/me/relation-requests", {
+    method: "POST",
+    body: { user_id: userId },
+  });
+}
+
+/** Eigen connecties, nieuwste eerst (GET users/me/relations). */
+export async function listRelations(config: UnipileConfig, cursor?: string | null) {
+  const raw = await unipileRequest<RawRelationsResponse>(config, "users/me/relations", {
+    query: { limit: 50, cursor: cursor ?? undefined },
+  });
+  return mapRelations(raw);
+}
+
+/**
+ * Eerste bericht aan een connectie (POST inboxes/CLASSIC_PRIMARY/chats/send).
+ * `users_ids` als enkele string = 1-op-1-gesprek (een lijst zou een groep maken).
+ */
+export async function startChat(config: UnipileConfig, userId: string, text: string) {
+  return unipileRequest<{ chat_id: string; message_id: string }>(config, "inboxes/CLASSIC_PRIMARY/chats/send", {
+    method: "POST",
+    body: { users_ids: userId, text },
+  });
+}
+
+/**
+ * Recentste 1-op-1-gesprekken (GET chats), gesorteerd op laatste bericht,
+ * nieuwste eerst. Let op: de filter `after` werkt op de aanmaakdatum van het
+ * gesprek, niet op het laatste bericht, dus die gebruiken we niet.
+ */
+export async function listRecentChats(config: UnipileConfig) {
+  const raw = await unipileRequest<RawChatsResponse>(config, "chats", {
+    query: { type: "1to1", limit: 50 },
+  });
+  return mapChats(raw);
+}
+
+/** Berichten in een gesprek (GET chats/{id}/messages), eventueel sinds een tijdstip. */
+export async function listIncomingMessages(config: UnipileConfig, chatId: string, after: string | null) {
+  const raw = await unipileRequest<RawMessagesResponse>(config, `chats/${encodeURIComponent(chatId)}/messages`, {
+    query: { limit: 20, after: after ?? undefined },
+  });
+  return incomingMessages(raw);
 }

@@ -1,4 +1,4 @@
-import { Pencil, Search, Users } from "lucide-react";
+import { Pencil, Search, Send, Users } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -39,8 +39,9 @@ function Chips({ items }: { items: string[] }) {
   );
 }
 
-export default async function VacaturePage({ params }: PageProps<"/vacatures/[id]">) {
+export default async function VacaturePage({ params, searchParams }: PageProps<"/vacatures/[id]">) {
   const { id } = await params;
+  const showAll = (await searchParams).toon === "alle";
   if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
@@ -49,11 +50,14 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
 
   const { data: links } = await supabase
     .from("candidate_vacancy")
-    .select("candidate_id, stage, created_at, match_score")
+    .select("candidate_id, stage, created_at, match_score, outreach_status, replied_at")
     .eq("vacancy_id", id)
     .order("created_at", { ascending: false });
 
   const linkedIds = (links ?? []).map((l) => l.candidate_id);
+  // Automatisch benaderde kandidaten pas tonen als ze gereageerd hebben (tenzij "toon alle").
+  const inProgress = (links ?? []).filter((l) => l.outreach_status && !l.replied_at && l.stage !== "opted_out");
+  const visibleLinks = showAll ? (links ?? []) : (links ?? []).filter((l) => !inProgress.includes(l));
   const [{ data: linkedCandidates }, { data: activeCandidates }] = await Promise.all([
     linkedIds.length
       ? supabase.from("candidates").select("id, full_name, location, country, headline").in("id", linkedIds)
@@ -86,6 +90,12 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
               <Link href={`/vacatures/${id}/bewerken`}>
                 <Pencil />
                 Bewerken
+              </Link>
+            </Button>
+            <Button asChild variant="bordered">
+              <Link href={`/vacatures/${id}/automatisch`}>
+                <Send />
+                Automatisch benaderen
               </Link>
             </Button>
             <Button asChild variant="default">
@@ -124,8 +134,22 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
           </dl>
         </Panel>
 
-        <Panel title="Kandidaten" subtitle={`${links?.length ?? 0} gekoppeld`}>
-          {links?.length ? (
+        <Panel
+          title="Kandidaten"
+          subtitle={
+            inProgress.length && !showAll
+              ? `${visibleLinks.length} getoond · ${inProgress.length} worden automatisch benaderd en verschijnen hier zodra ze reageren`
+              : `${links?.length ?? 0} gekoppeld`
+          }
+          actions={
+            inProgress.length > 0 && (
+              <Button asChild variant="borderless" size="sm">
+                <Link href={showAll ? `/vacatures/${id}` : `/vacatures/${id}?toon=alle`}>{showAll ? "Alleen reacties" : `Toon alle (${links?.length ?? 0})`}</Link>
+              </Button>
+            )
+          }
+        >
+          {visibleLinks.length ? (
             <Table className="min-w-[480px]">
               <THead>
                 <TR>
@@ -136,7 +160,7 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
                 </TR>
               </THead>
               <TBody>
-                {links.map((l) => {
+                {visibleLinks.map((l) => {
                   const c = byId.get(l.candidate_id);
                   return (
                     <TR key={l.candidate_id}>

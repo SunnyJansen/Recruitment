@@ -26,7 +26,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
 **Next.js 16 let op:** `proxy.ts` i.p.v. `middleware.ts`; `cacheComponents` staat aan, dus alles wat cookies/sessie/searchParams leest moet binnen `<Suspense>` (of een `loading.tsx`) staan. Lees bij twijfel `node_modules/next/dist/docs/`.
 
 ## Harde regels (niet van afwijken)
-1. **Geen bericht gaat weg zonder goedkeuring.** AI maakt concepten met status `draft`; alleen een gebruiker zet ze op `approved`. Verzenden gebeurt alleen bij `approved`.
+1. **Geen bericht gaat weg zonder goedkeuring.** Twee toegestane routes: (a) concept (`draft`) dat een gebruiker op `approved` zet; (b) **automatisch benaderen**: een mens keurt per vacature één campagnetekst (NL+EN) + zoekopdracht goed; een automatisch bericht mag alleen als de tekst EXACT `render_campaign_message()` van een actieve, goedgekeurde campagne is (database-trigger). Tekst/zoekopdracht wijzigen → goedkeuring vervalt. Besluit Sunny 11 nov 2026.
 2. **LinkedIn-limieten afdwingen in code** (instelbaar in tabel `settings`):
    - max. 20 connectieverzoeken per dag / 100 per week per account
    - max. 50 berichten per dag
@@ -38,7 +38,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
    - afmelding/“geen interesse” → status `opted_out`, nooit meer benaderen
    - kandidaten zonder reactie na `retention_days` (standaard 180) automatisch anonimiseren
    - log elke actie in `activity_log`
-4. **AI beslist niet zelf over kandidaten.** Matchscore is advies; afwijzen/doorzetten doet een mens (EU AI Act: recruitment-AI = hoog risico).
+4. **AI beslist niet zelf over kandidaten.** Matchscore is advies; afwijzen/doorzetten doet een mens (EU AI Act: recruitment-AI = hoog risico). Automatisch benaderen selecteert op de door de recruiter ingestelde zoekopdracht, níet op AI-score.
 5. **Geheimen alleen in Vercel Environment Variables (of `.env.local`)**, nooit in code of git.
 6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken. **We gebruiken Unipile API v2** (`https://api.unipile.com/v2/{acc_…}/…`, account-ID in het pad); v1 niet. Al geverifieerd: zie `docs/UNIPILE.md` (zoeken, locatie-ID's, profiel, foutcodes, limieten). v2-docs: `developer.unipile.com/v2.0/...` (zet `.md` achter een URL voor markdown; index `v2.0/llms.txt`). De omgeving `recruitment` staat developer.unipile.com toe (ophalen met `curl` via de proxy; WebFetch kan het soms niet).
 
@@ -76,6 +76,7 @@ Volledig schema: `supabase/migrations/`. Types: `lib/db/types.ts` (met de hand g
 - **Inloggen:** de link wordt aangevraagd met de implicit-flow (`lib/auth/request-link.ts`) zodat hij in elke browser werkt met de standaard Supabase-mail (templates aanpassen kan pas met eigen SMTP). Landing: `/auth/complete`. Niet terugzetten naar PKCE; `npm run test:e2e` bewaakt dit.
 - **Browsertests:** `scripts/e2e/*.mjs` draaien tegen `scripts/e2e/fake-supabase.mjs`: een nep-PostgREST op PGlite met álle migraties (echte triggers en constraints). Ondersteunt geen embedding (`select=a,b(c)`): haal gerelateerde rijen apart op met `.in()`. Next.js 16 houdt vorige pagina's verborgen in de DOM (Activity), dus in tests alleen zichtbare elementen checken (`seen()`).
 - **LinkedIn-acties (fase 3+):** elke automatische actie gaat via `linkedin_take_slot()` in de database (willekeurige pauze, dag-/weeklimiet, atomair) + `checkWorkingHours()` (`lib/queue/schedule.ts`, incl. NL-feestdagen). Tellen in `linkedin_actions`. Import: `import_queue` + `processNextImport()` (`lib/queue/import.ts`), nu aangedreven door de open importpagina; fase 6-cron kan dezelfde functie aanroepen. Classic zoeken: max. 10 per pagina. E-mail/telefoon uit LinkedIn nooit overnemen.
+- **Automatisch benaderen:** `lib/queue/outreach.ts` (`runOutreachTick`): per tik reacties lezen → connecties (2–4 u, willekeurig) → één actie (bericht > uitnodiging zonder tekst > zoeken). Aangeroepen door `/api/cron/outreach` (cron-job.org, header `Authorization: Bearer CRON_SECRET`, service-key via `lib/db/admin.ts`). Gratis LinkedIn-account: uitnodigingen zonder tekst. Dashboard toont alleen kandidaten die gereageerd hebben. Afmelding herkennen: `isOptOutReply()` (trefwoorden; AI-indeling later). Test: `scripts/e2e/outreach.mjs`. Setup: `docs/AUTOMATISCH-BENADEREN.md`.
 - Volg `docs/PLAN.md` fase voor fase. Begin pas aan een volgende fase als de huidige werkt.
 - Schrijf per module een kleine test of testscript.
 - Gebruik **Unipile sandbox/testaccount** of een LinkedIn-account dat gemist kan worden tijdens ontwikkelen.

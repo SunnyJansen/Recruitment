@@ -72,6 +72,42 @@ export type CandidateVacancy = {
   matched_at: Timestamp | null;
   stage: Stage;
   stage_changed_by: string | null;
+  campaign_id: string | null;
+  outreach_status: OutreachStatus | null;
+  outreach_error: string | null;
+  invited_at: Timestamp | null;
+  connected_at: Timestamp | null;
+  messaged_at: Timestamp | null;
+  replied_at: Timestamp | null;
+  chat_id: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
+export type OutreachStatus = "pending" | "invited" | "connected" | "messaged" | "replied" | "failed" | "skipped";
+
+export type CampaignStatus = "draft" | "active" | "paused";
+
+export type CampaignQuery = {
+  keywords?: string;
+  title?: string;
+  location_ids?: string[];
+  location_labels?: string[];
+  network_distance?: (1 | 2 | 3)[];
+};
+
+export type Campaign = {
+  id: string;
+  vacancy_id: string;
+  status: CampaignStatus;
+  search_query: Json;
+  template_nl: string;
+  template_en: string;
+  approved_by: string | null;
+  approved_by_label: string | null;
+  approved_at: Timestamp | null;
+  search_cursor: string | null;
+  search_exhausted: boolean;
   created_at: Timestamp;
   updated_at: Timestamp;
 };
@@ -91,6 +127,7 @@ export type Message = {
   unipile_chat_id: string | null;
   unipile_message_id: string | null;
   reply_category: ReplyCategory | null;
+  campaign_id: string | null;
   error: string | null;
   scheduled_at: Timestamp | null;
   sent_at: Timestamp | null;
@@ -197,6 +234,7 @@ export type Database = {
       linkedin_actions: Table<LinkedinAction, "kind">;
       rate_state: Table<RateState, "key">;
       import_queue: Table<ImportQueueItem, "provider_id">;
+      campaigns: Table<Campaign, "vacancy_id">;
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -218,6 +256,7 @@ export type Database = {
       linkedin_count: { Args: { p_kind: string; p_period: string }; Returns: number };
       claim_next_import: { Args: { p_vacancy_id?: string | null }; Returns: ImportQueueItem[] };
       release_stuck_imports: { Args: Record<string, never>; Returns: number };
+      render_campaign_message: { Args: { p_campaign_id: string; p_candidate_id: string }; Returns: string };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

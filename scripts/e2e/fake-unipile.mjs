@@ -33,7 +33,15 @@ export const FAKE_PEOPLE = PEOPLE;
 
 export async function startFakeUnipile(port) {
   const requests = [];
-  const state = { mode: "ok" }; // "ok" | "disconnected"
+  const state = {
+    mode: "ok", // "ok" | "disconnected"
+    invited: [], // user_ids met een uitnodiging
+    relations: [], // user_ids die geaccepteerd hebben (oudste eerst)
+    chats: new Map(), // chat_id → { userId, messages: [{ id, text, is_sender, timestamp }] }
+  };
+  let seq = 0;
+  const nextId = (prefix) => `${prefix}_${++seq}`;
+  const iso = () => new Date(Date.now() + seq).toISOString();
 
   const server = http.createServer((req, res) => {
     let raw = "";
@@ -101,6 +109,59 @@ export async function startFakeUnipile(port) {
         });
       }
 
+      // ---- Benaderen: uitnodigingen, connecties, gesprekken (v2) ----
+      if (req.method === "POST" && rest === "users/me/relation-requests") {
+        const body = raw ? JSON.parse(raw) : {};
+        if (!body.user_id) return error(400, "api/invalid_parameters", "Invalid parameters", "body must have required property 'user_id'");
+        if (state.invited.includes(body.user_id) || state.relations.includes(body.user_id)) {
+          return error(422, "provider/unprocessable_entity", "Unprocessable", "An invitation is already pending");
+        }
+        state.invited.push(body.user_id);
+        res.writeHead(201, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ object: "RelationRequest", type: "sent", id: nextId("rr"), created_at: iso() }));
+      }
+      if (req.method === "GET" && rest === "users/me/relations") {
+        const limit = Number(url.searchParams.get("limit") ?? 20);
+        const start = Number(url.searchParams.get("cursor") ?? 0);
+        const all = [...state.relations].reverse(); // nieuwste eerst
+        const page = all.slice(start, start + limit);
+        return send({
+          data: page.map((id) => {
+            const p = PEOPLE.find((x) => x.id === id) ?? { id, name: id, public_identifier: null };
+            return { id: `rel_${id}`, object: "UserRelation", created_at: iso(), user: { id, object: "User", type: "user", display_name: p.name, public_identifier: p.public_identifier } };
+          }),
+          ...(start + limit < all.length ? { next_cursor: String(start + limit) } : {}),
+        });
+      }
+      if (req.method === "POST" && rest === "inboxes/CLASSIC_PRIMARY/chats/send") {
+        const body = raw ? JSON.parse(raw) : {};
+        if (typeof body.users_ids !== "string") {
+          return error(400, "api/invalid_parameters", "Invalid parameters", "users_ids as array would start a group");
+        }
+        if (!state.relations.includes(body.users_ids)) return error(403, "provider/insufficient_permissions", "Not a relation", "Recipient is not a relation");
+        const chatId = nextId("chat");
+        const messageId = nextId("msg");
+        state.chats.set(chatId, { userId: body.users_ids, messages: [{ id: messageId, text: body.text, is_sender: true, timestamp: iso() }] });
+        return send({ object: "ChatStarted", chat_id: chatId, message_id: messageId });
+      }
+      if (req.method === "GET" && rest === "chats") {
+        const list = [...state.chats.entries()]
+          .map(([id, c]) => ({ id, object: "Chat", type: "1to1", is_1to1: true, user_id: c.userId, last_message_timestamp: c.messages.at(-1)?.timestamp }))
+          .sort((a, b) => b.last_message_timestamp.localeCompare(a.last_message_timestamp));
+        return send({ data: list.slice(0, Number(url.searchParams.get("limit") ?? 20)) });
+      }
+      const msgs = rest.match(/^chats\/([^/]+)\/messages$/);
+      if (req.method === "GET" && msgs) {
+        const chat = state.chats.get(decodeURIComponent(msgs[1]));
+        if (!chat) return error(404, "provider/resource_not_found", "Chat not found");
+        const after = url.searchParams.get("after");
+        const list = chat.messages
+          .filter((m) => !after || m.timestamp > after)
+          .map((m) => ({ object: "Message", id: m.id, text: m.text, chat_id: msgs[1], sender_id: m.is_sender ? "me" : chat.userId, is_sender: m.is_sender, timestamp: m.timestamp, is_event: false, is_deleted: false }))
+          .reverse();
+        return send({ data: list });
+      }
+
       const profile = rest.match(/^users\/([^/]+)$/);
       if (req.method === "GET" && profile) {
         const id = decodeURIComponent(profile[1]);
@@ -140,6 +201,18 @@ export async function startFakeUnipile(port) {
     });
   });
 
+  /** Test-hulp: kandidaat accepteert de uitnodiging. */
+  const accept = (userId) => {
+    if (!state.relations.includes(userId)) state.relations.push(userId);
+  };
+  /** Test-hulp: kandidaat stuurt een reactie in het bestaande gesprek. */
+  const reply = (userId, text) => {
+    const entry = [...state.chats.entries()].find(([, c]) => c.userId === userId);
+    if (!entry) throw new Error(`Geen gesprek met ${userId}`);
+    seq += 1000;
+    entry[1].messages.push({ id: nextId("msg"), text, is_sender: false, timestamp: iso() });
+  };
+
   await new Promise((resolve) => server.listen(port, resolve));
-  return { server, requests, state };
+  return { server, requests, state, accept, reply };
 }

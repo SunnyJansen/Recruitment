@@ -58,6 +58,24 @@ index: `https://developer.unipile.com/v2.0/llms.txt`.
   job_title, started_on, ended_on, location }]` (datums `MM/DD/YYYY`), `skills[{ name }]`,
   `network_distance`. **E-mail/telefoon nemen we niet over** (besluit).
 
+## Benaderen (uitnodigen, connecties, berichten, reacties)
+Geverifieerd in `reference/createrelationrequest`, `getuserrelations`, `startchatfrominbox`,
+`getchatslist`, `getmessageslist` en `docs/linkedin-send-messages` (v2, 11 nov 2026).
+- **Uitnodiging:** `POST /v2/{acc}/users/me/relation-requests` body `{ user_id, message? }` → 201
+  `{ object: "RelationRequest", type: "sent", id }`. Wij sturen **geen** `message` (gratis account).
+- **Connecties:** `GET /v2/{acc}/users/me/relations?limit=…&cursor=…` → `{ data: [{ id, created_at,
+  user: { id, public_identifier, display_name, profile_url } }], next_cursor }`. Bladeren alleen met `cursor`.
+  Unipile raadt aan dit maar een paar keer per dag op willekeurige momenten te doen.
+- **Eerste bericht:** `POST /v2/{acc}/inboxes/CLASSIC_PRIMARY/chats/send` body `{ users_ids: "<user_id>",
+  text }` → `{ chat_id, message_id }`. `users_ids` als **enkele string** = 1-op-1 (een lijst = groep).
+  Alleen de primary inbox mag een gesprek starten; zonder connectie kan het alleen met InMail.
+- **Gesprekken:** `GET /v2/{acc}/chats?type=1to1&limit=…` → `{ data: [{ id, user_id, type, is_1to1,
+  last_message_timestamp }] }`, nieuwste laatste bericht eerst. Let op: `after` filtert op de
+  **aanmaakdatum** van het gesprek, niet op het laatste bericht.
+- **Berichten:** `GET /v2/{acc}/chats/{chat_id}/messages?after=…` → `{ data: [{ id, text, sender_id,
+  is_sender, timestamp, is_event, is_deleted }] }`, nieuwste eerst. `is_sender: false` = van de kandidaat.
+- Advies Unipile: minstens 10–20 seconden tussen berichten (wij: 30–120 s).
+
 ## Foutmeldingen v2 (selectie)
 | status | type | betekenis |
 |---|---|---|

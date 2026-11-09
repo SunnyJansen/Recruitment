@@ -22,7 +22,10 @@ de fases.
 - [x] **Fase 2 — Vacatures & handmatige kandidaten** (getest en werkend):
   vacatures met lasprocessen/materialen/eisen, kandidaten toevoegen zonder
   dubbelen, koppelen, fase wijzigen, tijdlijn, afmelden.
-- [x] **Fase 3 — LinkedIn zoeken & importeren** (gebouwd, wacht op jouw test):
+- [x] **Automatisch benaderen** (gebouwd, wacht op jouw test): per vacature één keer
+  tekst + zoekopdracht goedkeuren; daarna elke werkdag automatisch uitnodigen en berichten;
+  reacties op het dashboard. **Instellen:** `docs/AUTOMATISCH-BENADEREN.md`.
+- [x] **Fase 3 — LinkedIn zoeken & importeren** (getest en werkend):
   zoeken via Unipile per vacature, locatie-filter, resultaten gemarkeerd (al bekend /
   afgemeld), import via wachtrij met pauzes en daglimiet, geen dubbelen.
   **Instellen:** `docs/UNIPILE-INSTELLEN.md` + migratie `20261110000000_fase3_linkedin.sql`

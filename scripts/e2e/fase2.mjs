@@ -231,7 +231,7 @@ try {
   check("ongeldig adres → niet gevonden", await seen(page.getByText("Niet gevonden")));
   await page.goto(`${APP}/`, { waitUntil: "networkidle" });
   await page.getByText("Databasecontrole").filter({ visible: true }).waitFor({ timeout: 10000 }).catch(() => {});
-  check("dashboard telt 1 vacature en 2 kandidaten", (await page.innerText("main")).replace(/\s+/g, " ").includes("VACATURES 1 KANDIDATEN 2"));
+  check("dashboard telt 1 vacature en 2 kandidaten", (await page.innerText("main")).replace(/\s+/g, " ").includes("1 vacatures · 2 kandidaten"));
   const actions = (await q(`select action from activity_log order by id`)).map((r) => r.action);
   for (const a of ["vacancy_created", "vacancy_updated", "candidate_created", "linked_to_vacancy", "stage_changed", "opted_out"]) {
     check(`gelogd: ${a}`, actions.includes(a), actions.join(","));

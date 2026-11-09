@@ -16,3 +16,8 @@ export function formatDate(value: string | Date | null | undefined) {
 export function formatDateTime(value: string | Date | null | undefined) {
   return value ? dateTimeFmt.format(new Date(value)) : "—";
 }
+
+/** Tijdstip van n dagen geleden (ISO), bijv. voor "afgelopen 7 dagen". */
+export function daysAgoIso(days: number) {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}

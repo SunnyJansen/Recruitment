@@ -50,3 +50,11 @@ Antwoorden van Sunny Jansen op de startvragen (6 november 2026). Bij twijfel gaa
 
 ## Dashboard
 - Cijfers: benaderd, responsratio, acceptatieratio per vacature en per week. Meer is niet nodig.
+
+## Automatisch benaderen (11 november 2026)
+- Het systeem benadert kandidaten **automatisch en elke werkdag**; Sunny ziet een kandidaat pas op het dashboard als die reageert.
+- **Goedkeuring:** per vacature één keer de berichttekst (NL + EN, met invulvelden) en de zoekopdracht. Geen goedkeuring per bericht. De database controleert dat elk bericht exact die tekst is.
+- **Wie:** iedereen uit de door Sunny ingestelde zoekopdracht (geen AI-selectie), behalve wie al bekend, eerder benaderd of afgemeld is.
+- **LinkedIn-account:** gratis → uitnodiging **zonder tekst**; na acceptatie volgt het goedgekeurde bericht.
+- Reactie met "geen interesse"/"stop" e.d. → direct afgemeld (regel 3).
+- Uitvoering via cron-job.org elke 5 minuten (Vercel Hobby heeft maar 1 cron per dag).
