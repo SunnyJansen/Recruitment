@@ -24,13 +24,15 @@ jobs:
         run: npm run test:login
       - name: Formulieren testen
         run: npm run test:forms
+      - name: LinkedIn-regels testen (werktijden, feestdagen, omzetten)
+        run: npm run test:linkedin
       - name: Codecontrole (lint)
         run: npm run lint
       - name: App bouwen
         run: npm run build
       - name: Browser installeren voor inlogtest
         run: npx playwright install --with-deps chromium
-      - name: App testen in een echte browser (inloggen, vacatures, kandidaten)
+      - name: App testen in een echte browser (inloggen, vacatures, kandidaten, LinkedIn)
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_e2e_test_key_0000

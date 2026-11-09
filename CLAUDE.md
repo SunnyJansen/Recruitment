@@ -40,7 +40,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
    - log elke actie in `activity_log`
 4. **AI beslist niet zelf over kandidaten.** Matchscore is advies; afwijzen/doorzetten doet een mens (EU AI Act: recruitment-AI = hoog risico).
 5. **Geheimen alleen in Vercel Environment Variables (of `.env.local`)**, nooit in code of git.
-6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken.
+6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken. Al geverifieerd: zie `docs/UNIPILE.md` (zoeken, locatie-ID's, profiel, limieten). De omgeving `recruitment` staat developer.unipile.com toe (ophalen met `curl` via de proxy; WebFetch kan het soms niet).
 
 ## Besluiten
 Alle antwoorden op de startvragen (doelgroep lassers NL + Zuid-Afrika, taal NL/EN per kandidaat, opvolgschema, bewaartermijnen, enz.) staan in `docs/BESLUITEN.md`. Die gaan voor op aannames.
@@ -62,7 +62,7 @@ Volledig schema: `supabase/migrations/`. Types: `lib/db/types.ts` (met de hand g
 ## Mappenstructuur
 ```
 /app            pagina's + /app/api routes (webhooks, cron)
-/lib/unipile    Unipile client (search, getProfile, invite, sendMessage)
+/lib/unipile    Unipile client (client.ts, linkedin.ts: search/getProfile; map.ts: puur, getest)
 /lib/ai         Claude prompts (match, writeMessage, classifyReply)
 /lib/queue      verzendwachtrij + rate limiting
 /lib/db         Supabase client + types
@@ -75,6 +75,7 @@ Volledig schema: `supabase/migrations/`. Types: `lib/db/types.ts` (met de hand g
 - **Testmodus (`SITE_PASSWORD` gezet):** één teamwachtwoord, cookie `cr8_site` (HMAC), server gebruikt de service-key (`lib/db/server.ts`), `actor_id` in logs is dan null. Goedkeuren van berichten werkt in deze modus NIET (trigger eist `auth.uid()`), dus vóór fase 5 moet de gewone login terug. Bouw nieuwe features zo dat ze in beide modi werken (gebruik `createClient()`/`getCurrentUser()` uit `lib/db/server.ts`).
 - **Inloggen:** de link wordt aangevraagd met de implicit-flow (`lib/auth/request-link.ts`) zodat hij in elke browser werkt met de standaard Supabase-mail (templates aanpassen kan pas met eigen SMTP). Landing: `/auth/complete`. Niet terugzetten naar PKCE; `npm run test:e2e` bewaakt dit.
 - **Browsertests:** `scripts/e2e/*.mjs` draaien tegen `scripts/e2e/fake-supabase.mjs`: een nep-PostgREST op PGlite met álle migraties (echte triggers en constraints). Ondersteunt geen embedding (`select=a,b(c)`): haal gerelateerde rijen apart op met `.in()`. Next.js 16 houdt vorige pagina's verborgen in de DOM (Activity), dus in tests alleen zichtbare elementen checken (`seen()`).
+- **LinkedIn-acties (fase 3+):** elke automatische actie gaat via `linkedin_take_slot()` in de database (willekeurige pauze, dag-/weeklimiet, atomair) + `checkWorkingHours()` (`lib/queue/schedule.ts`, incl. NL-feestdagen). Tellen in `linkedin_actions`. Import: `import_queue` + `processNextImport()` (`lib/queue/import.ts`), nu aangedreven door de open importpagina; fase 6-cron kan dezelfde functie aanroepen. Classic zoeken: max. 10 per pagina. E-mail/telefoon uit LinkedIn nooit overnemen.
 - Volg `docs/PLAN.md` fase voor fase. Begin pas aan een volgende fase als de huidige werkt.
 - Schrijf per module een kleine test of testscript.
 - Gebruik **Unipile sandbox/testaccount** of een LinkedIn-account dat gemist kan worden tijdens ontwikkelen.

@@ -161,6 +161,7 @@ export async function startFakeSupabase(port, { migrationsDir } = {}) {
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create role anon;
     create role authenticated;
+    create role service_role;
     insert into auth.users values ('${MOCK_USER.id}', '${MOCK_USER.email}');
   `);
   const dir = migrationsDir ?? join(import.meta.dirname, "..", "..", "supabase", "migrations");
@@ -196,6 +197,32 @@ export async function startFakeSupabase(port, { migrationsDir } = {}) {
   }
 
   const requests = [];
+
+  /** POST /rest/v1/rpc/<functie>: databasefunctie aanroepen met benoemde argumenten. */
+  async function handleRpc(res, fn, args) {
+    const name = ident(fn);
+    const { rows: procs } = await db.query(
+      `select proretset from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = $1`,
+      [fn],
+    );
+    if (!procs.length) throw Object.assign(new Error(`Functie ${fn} bestaat niet`), { code: "PGRST202" });
+    const params = [];
+    const argSql = Object.entries(args ?? {})
+      .map(([k, v]) => {
+        params.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v);
+        return `${ident(k)} => $${params.length}`;
+      })
+      .join(", ");
+    const headers = { ...cors, "content-type": "application/json" };
+    if (procs[0].proretset) {
+      const { rows } = await db.query(`SELECT * FROM public.${name}(${argSql})`, params);
+      res.writeHead(200, headers);
+      return res.end(json(rows));
+    }
+    const { rows } = await db.query(`SELECT public.${name}(${argSql}) AS result`, params);
+    res.writeHead(200, headers);
+    res.end(json(rows[0]?.result ?? null));
+  }
 
   async function handleRest(req, res, url, body) {
     const table = url.pathname.replace("/rest/v1/", "");
@@ -275,6 +302,9 @@ export async function startFakeSupabase(port, { migrationsDir } = {}) {
         if (url.pathname.startsWith("/auth/v1/otp")) return send(200, {});
         if (url.pathname.startsWith("/auth/v1/user")) {
           return req.headers.authorization ? send(200, MOCK_USER) : send(401, { code: "no_authorization" });
+        }
+        if (url.pathname.startsWith("/rest/v1/rpc/")) {
+          return await handleRpc(res, url.pathname.slice("/rest/v1/rpc/".length), raw ? JSON.parse(raw) : {});
         }
         if (url.pathname.startsWith("/rest/v1/")) {
           return await handleRest(req, res, url, raw ? JSON.parse(raw) : {});

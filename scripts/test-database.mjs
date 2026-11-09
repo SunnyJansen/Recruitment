@@ -48,6 +48,7 @@ await db.exec(`
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create role anon;
   create role authenticated;
+  create role service_role;
   grant usage on schema public, auth to anon, authenticated;
   insert into auth.users values ('11111111-1111-1111-1111-111111111111', 'sunny@cr8las.nl');
 `);
@@ -156,6 +157,35 @@ await expectError("afgemelde kandidaat kan niet terug naar actief", () =>
 await db.query(`delete from candidates where linkedin_url = 'https://www.linkedin.com/in/b-lasser'`);
 const readded = (await db.query(`insert into candidates (full_name, linkedin_url) values ('B opnieuw', 'https://www.linkedin.com/in/b-lasser') returning status`)).rows[0];
 readded.status === "opted_out" ? ok("opnieuw toevoegen met zelfde LinkedIn-link → meteen afgemeld") : fail("opnieuw toevoegen", readded.status);
+
+console.log("\nFase 3 — LinkedIn-limieten (regel 2):");
+const slot = async () => (await db.query(`select public.linkedin_take_slot('profile_view', 2, null, 30, 120) as r`)).rows[0].r;
+await db.exec(asSystem);
+const s1 = await slot();
+s1.ok && s1.wait_seconds >= 30 && s1.wait_seconds <= 120 ? ok(`eerste profielbezoek mag; volgende pas na ${s1.wait_seconds} s`) : fail("eerste profielbezoek", JSON.stringify(s1));
+const s2 = await slot();
+!s2.ok && s2.reason === "wait" && s2.wait_seconds > 0 ? ok("direct daarna: wachten (geen bulk)") : fail("direct daarna wachten", JSON.stringify(s2));
+await db.query(`update rate_state set next_at = now() - interval '1 second'`);
+const s3 = await slot();
+await db.query(`update rate_state set next_at = now() - interval '1 second'`);
+const s4 = await slot();
+s3.ok && !s4.ok && s4.reason === "daily_limit" ? ok("daglimiet (2) wordt afgedwongen") : fail("daglimiet", JSON.stringify([s3, s4]));
+const wk = (await db.query(`select public.linkedin_take_slot('invite', 100, 1, 0, 0) as a, public.linkedin_take_slot('invite', 100, 1, 0, 0) as b`)).rows[0];
+wk.a.ok && !wk.b.ok && wk.b.reason === "weekly_limit" ? ok("weeklimiet wordt afgedwongen") : fail("weeklimiet", JSON.stringify(wk));
+const sr = (await db.query(`select public.linkedin_record_search(990, 1000) as a, public.linkedin_record_search(25, 1000) as b, public.linkedin_record_search(25, 1000) as c`)).rows[0];
+sr.a.ok && sr.b.ok && !sr.c.ok ? ok("max. zoekresultaten per dag") : fail("zoekresultaten per dag", JSON.stringify(sr));
+
+const vacId = (await db.query(`insert into vacancies (title) values ('Q') returning id`)).rows[0].id;
+await db.query(`insert into import_queue (vacancy_id, provider_id, name) values ($1, 'ACoA1', 'Een'), ($1, 'ACoA2', 'Twee')`, [vacId]);
+await expectError("zelfde persoon niet twee keer tegelijk in de wachtrij", () =>
+  db.query(`insert into import_queue (vacancy_id, provider_id) values ($1, 'ACoA1')`, [vacId]), /unique|duplicate/i);
+const c1 = (await db.query(`select * from public.claim_next_import($1)`, [vacId])).rows;
+const c2 = (await db.query(`select * from public.claim_next_import($1)`, [vacId])).rows;
+const c3 = (await db.query(`select * from public.claim_next_import($1)`, [vacId])).rows;
+c1[0]?.provider_id === "ACoA1" && c2[0]?.provider_id === "ACoA2" && c3.length === 0
+  ? ok("wachtrij geeft items één voor één, op volgorde, nooit dubbel")
+  : fail("wachtrij", JSON.stringify([c1, c2, c3]));
+await db.exec(asUser);
 
 console.log("\nLogboek en beveiliging:");
 await expectOk("gebruiker schrijft in activity_log", () =>

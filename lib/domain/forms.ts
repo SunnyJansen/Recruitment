@@ -255,7 +255,13 @@ export function experienceToText(json: unknown): string {
       if (e && typeof e === "object") {
         const o = e as Record<string, unknown>;
         if (typeof o.omschrijving === "string") return o.omschrijving;
-        return [o.title, o.company, o.period].filter((x) => typeof x === "string" && x).join(" – ");
+        const period =
+          typeof o.period === "string"
+            ? o.period
+            : o.start || o.end
+              ? `${typeof o.start === "string" ? o.start : "?"}–${typeof o.end === "string" ? o.end : "heden"}`
+              : "";
+        return [o.title, o.company, period].filter((x) => typeof x === "string" && x).join(" – ");
       }
       return "";
     })

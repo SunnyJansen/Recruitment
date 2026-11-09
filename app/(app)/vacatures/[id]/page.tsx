@@ -1,4 +1,4 @@
-import { Pencil, Users } from "lucide-react";
+import { Pencil, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -65,6 +65,12 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
     .filter((c) => !linkedIds.includes(c.id))
     .map((c) => ({ id: c.id, label: c.location ? `${c.full_name} (${c.location})` : c.full_name }));
 
+  const { count: openImports } = await supabase
+    .from("import_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("vacancy_id", id)
+    .in("status", ["pending", "processing"]);
+
   const r = readRequirements(v.requirements);
   const status = VACANCY_STATUS[v.status];
 
@@ -82,9 +88,23 @@ export default async function VacaturePage({ params }: PageProps<"/vacatures/[id
                 Bewerken
               </Link>
             </Button>
+            <Button asChild variant="default">
+              <Link href={`/vacatures/${id}/zoeken`}>
+                <Search />
+                Zoek op LinkedIn
+              </Link>
+            </Button>
           </>
         }
       >
+        {(openImports ?? 0) > 0 && (
+          <p role="status" className="flex flex-wrap items-center gap-2 rounded-tile bg-accent-tint px-4 py-3 text-[13px] text-accent-text">
+            Er staan nog {openImports} LinkedIn-profielen in de importwachtrij.
+            <Link href={`/vacatures/${id}/import`} className="font-semibold underline">
+              Ga verder met importeren
+            </Link>
+          </p>
+        )}
         {v.description && <p className="max-w-3xl text-app-body whitespace-pre-line text-muted-foreground">{v.description}</p>}
       </Panel>
 

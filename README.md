@@ -19,10 +19,13 @@ de fases.
 - [x] **Fase 1 — Fundament** (getest en werkend): Next.js, Sunny Apple-huisstijl,
   alle databasetabellen, lege pagina's. Inloggen nu tijdelijk met teamwachtwoord;
   inloggen met inlogmail is gebouwd en komt terug vóór fase 5.
-- [x] **Fase 2 — Vacatures & handmatige kandidaten** (gebouwd, wacht op jouw test):
+- [x] **Fase 2 — Vacatures & handmatige kandidaten** (getest en werkend):
   vacatures met lasprocessen/materialen/eisen, kandidaten toevoegen zonder
   dubbelen, koppelen, fase wijzigen, tijdlijn, afmelden.
-  **Database-update nodig:** `supabase/migrations/20261109000000_fase2_kandidaten.sql`
+- [x] **Fase 3 — LinkedIn zoeken & importeren** (gebouwd, wacht op jouw test):
+  zoeken via Unipile per vacature, locatie-filter, resultaten gemarkeerd (al bekend /
+  afgemeld), import via wachtrij met pauzes en daglimiet, geen dubbelen.
+  **Instellen:** `docs/UNIPILE-INSTELLEN.md` + migratie `20261110000000_fase3_linkedin.sql`
 
 ---
 

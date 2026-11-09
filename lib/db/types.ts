@@ -144,6 +144,44 @@ export type DoNotContact = {
   created_at: Timestamp;
 };
 
+export type LinkedinAction = {
+  id: number;
+  kind: "profile_view" | "search" | "invite" | "message";
+  amount: number;
+  at: Timestamp;
+  details: Json;
+};
+
+export type RateState = { key: string; next_at: Timestamp };
+
+export type ImportStatus = "pending" | "processing" | "done" | "skipped" | "failed";
+
+export type ImportQueueItem = {
+  id: string;
+  vacancy_id: string | null;
+  search_id: string | null;
+  provider_id: string;
+  public_identifier: string | null;
+  name: string | null;
+  status: ImportStatus;
+  result: string | null;
+  candidate_id: string | null;
+  attempts: number;
+  claimed_at: Timestamp | null;
+  created_by: string | null;
+  created_at: Timestamp;
+  processed_at: Timestamp | null;
+};
+
+/** Antwoord van linkedin_take_slot / linkedin_record_search. */
+export type SlotResult = {
+  ok: boolean;
+  reason?: "wait" | "daily_limit" | "weekly_limit";
+  wait_seconds?: number;
+  used?: number;
+  limit?: number;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -156,9 +194,31 @@ export type Database = {
       activity_log: Table<ActivityLog, "actor" | "action" | "entity">;
       settings: Table<Setting, "key" | "value">;
       do_not_contact: Table<DoNotContact, "hash" | "kind">;
+      linkedin_actions: Table<LinkedinAction, "kind">;
+      rate_state: Table<RateState, "key">;
+      import_queue: Table<ImportQueueItem, "provider_id">;
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      linkedin_take_slot: {
+        Args: {
+          p_kind: LinkedinAction["kind"];
+          p_daily_limit: number;
+          p_weekly_limit?: number | null;
+          p_min_delay?: number;
+          p_max_delay?: number;
+          p_details?: Json;
+        };
+        Returns: Json;
+      };
+      linkedin_record_search: {
+        Args: { p_results: number; p_daily_limit: number; p_details?: Json };
+        Returns: Json;
+      };
+      linkedin_count: { Args: { p_kind: string; p_period: string }; Returns: number };
+      claim_next_import: { Args: { p_vacancy_id?: string | null }; Returns: ImportQueueItem[] };
+      release_stuck_imports: { Args: Record<string, never>; Returns: number };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

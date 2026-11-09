@@ -19,7 +19,7 @@ Werk fase voor fase. Elke fase eindigt met iets dat je zelf kunt testen.
 
 **Test:** inloggen werkt, tabellen staan in Supabase.
 
-## Fase 2 — Vacatures & handmatige kandidaten
+## Fase 2 — Vacatures & handmatige kandidaten ✅ (afgerond 9 nov 2026)
 - Vacatures aanmaken/bewerken (titel, omschrijving, eisen, locatie)
 - Kandidaat handmatig toevoegen + kandidaatdetailpagina met tijdlijn (`activity_log` + `messages`)
 
