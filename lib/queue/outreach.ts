@@ -309,6 +309,20 @@ async function sendNextMessage(supabase: Db, config: UnipileConfig, s: AppSettin
 // 3b. Uitnodiging
 // ---------------------------------------------------------------------------
 
+/** Mag de volgende uitnodiging een tekst hebben? (weektegoed + niet geblokkeerd door LinkedIn) */
+async function inviteNotesAvailable(supabase: Db, s: AppSettings) {
+  if (s.maxInviteNotesPerWeek <= 0) return false;
+  const { data: block } = await supabase.from("rate_state").select("next_at").eq("key", "invite_notes").maybeSingle();
+  if (block && new Date(block.next_at).getTime() > Date.now()) return false;
+  const { count } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("channel", "linkedin_invite")
+    .eq("status", "sent")
+    .gte("sent_at", new Date(Date.now() - 7 * 86_400_000).toISOString());
+  return (count ?? 0) < s.maxInviteNotesPerWeek;
+}
+
 async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSettings, campaignIds: string[]): Promise<string | "wait" | null> {
   const { data: next } = await supabase
     .from("candidate_vacancy")
@@ -329,10 +343,55 @@ async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSetting
   const slot = await takeSlot(supabase, s, "invite", { candidate_id: cand.id });
   if (!slot.ok) return "wait";
 
+  // Korte, goedgekeurde tekst erbij zolang het weektegoed (gratis LinkedIn: ±15) het toelaat.
+  let note: string | null = null;
+  let noteMessageId: string | null = null;
+  if (await inviteNotesAvailable(supabase, s)) {
+    const { data: rendered } = await supabase.rpc("render_campaign_message", {
+      p_campaign_id: link.campaign_id!,
+      p_candidate_id: cand.id,
+      p_kind: "invite",
+    });
+    if (typeof rendered === "string" && rendered.trim() && rendered.length <= s.inviteNoteMaxChars) {
+      const { data: msg, error } = await supabase
+        .from("messages")
+        .insert({
+          candidate_id: cand.id,
+          vacancy_id: link.vacancy_id,
+          campaign_id: link.campaign_id,
+          channel: "linkedin_invite",
+          direction: "out",
+          body: rendered,
+          status: "approved",
+        })
+        .select("id")
+        .single();
+      if (error || !msg) throw new Error(`Uitnodigingstekst geweigerd: ${error?.message}`);
+      note = rendered;
+      noteMessageId = msg.id;
+    }
+  }
+
   try {
-    await sendRelationRequest(config, cand.linkedin_provider_id);
+    await sendRelationRequest(config, cand.linkedin_provider_id, note ?? undefined);
   } catch (e) {
     const err = e instanceof UnipileError ? e : new UnipileError(String(e), 0, null);
+    if (noteMessageId) await supabase.from("messages").update({ status: "failed", error: err.message }).eq("id", noteMessageId);
+    if (note && (err.status === 422 || err.type === "provider/unprocessable_entity")) {
+      // LinkedIn weigert een uitnodiging mét tekst (tegoed op): een week lang zonder tekst.
+      // De kandidaat blijft in de rij en krijgt bij de volgende stap een uitnodiging zonder tekst.
+      await supabase
+        .from("rate_state")
+        .update({ next_at: new Date(Date.now() + 7 * 86_400_000).toISOString() })
+        .eq("key", "invite_notes");
+      await logActivity(supabase, {
+        actor: "system",
+        action: "invite_notes_paused",
+        entity: "system",
+        details: { reason: err.message },
+      });
+      return "Uitnodiging met tekst geweigerd door LinkedIn (tegoed op); de komende week zonder tekst";
+    }
     if (!err.temporary) {
       await supabase
         .from("candidate_vacancy")
@@ -341,6 +400,9 @@ async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSetting
         .eq("vacancy_id", link.vacancy_id);
     }
     throw err;
+  }
+  if (noteMessageId) {
+    await supabase.from("messages").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", noteMessageId);
   }
   const now = new Date().toISOString();
   await supabase
@@ -354,9 +416,9 @@ async function sendNextInvite(supabase: Db, config: UnipileConfig, s: AppSetting
     action: "invite_sent",
     entity: "candidate",
     entityId: cand.id,
-    details: { vacancy_id: link.vacancy_id, campaign_id: link.campaign_id },
+    details: { vacancy_id: link.vacancy_id, campaign_id: link.campaign_id, with_note: Boolean(note) },
   });
-  return `Uitnodiging gestuurd aan ${cand.full_name}`;
+  return `Uitnodiging ${note ? "met tekst" : "zonder tekst"} gestuurd aan ${cand.full_name}`;
 }
 
 // ---------------------------------------------------------------------------

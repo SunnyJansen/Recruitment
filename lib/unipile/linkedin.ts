@@ -69,13 +69,14 @@ export async function getProfile(config: UnipileConfig, userId: string) {
 // ---------------------------------------------------------------------------
 
 /**
- * Uitnodiging sturen (POST users/me/relation-requests). Zonder bericht:
- * een gratis LinkedIn-account mag maar ±5 uitnodigingen mét bericht per maand.
+ * Uitnodiging sturen (POST users/me/relation-requests), met of zonder korte
+ * tekst (`message`). Gratis LinkedIn: ±15 per week mét tekst (max. 200 tekens),
+ * ±150 zonder (docs/UNIPILE.md).
  */
-export async function sendRelationRequest(config: UnipileConfig, userId: string) {
+export async function sendRelationRequest(config: UnipileConfig, userId: string, message?: string) {
   return unipileRequest<{ id: string }>(config, "users/me/relation-requests", {
     method: "POST",
-    body: { user_id: userId },
+    body: message ? { user_id: userId, message } : { user_id: userId },
   });
 }
 

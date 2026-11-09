@@ -36,6 +36,8 @@ export async function startFakeUnipile(port) {
   const state = {
     mode: "ok", // "ok" | "disconnected"
     invited: [], // user_ids met een uitnodiging
+    notesSent: 0, // uitnodigingen mét tekst
+    noteLimit: Infinity, // zoals LinkedIn: daarna weigert het uitnodigingen mét tekst
     relations: [], // user_ids die geaccepteerd hebben (oudste eerst)
     chats: new Map(), // chat_id → { userId, messages: [{ id, text, is_sender, timestamp }] }
   };
@@ -115,6 +117,11 @@ export async function startFakeUnipile(port) {
         if (!body.user_id) return error(400, "api/invalid_parameters", "Invalid parameters", "body must have required property 'user_id'");
         if (state.invited.includes(body.user_id) || state.relations.includes(body.user_id)) {
           return error(422, "provider/unprocessable_entity", "Unprocessable", "An invitation is already pending");
+        }
+        if (body.message !== undefined) {
+          if (body.message.length > 200) return error(422, "provider/unprocessable_entity", "Unprocessable", "Message too long (max 200 for free accounts)");
+          if (state.notesSent >= state.noteLimit) return error(422, "provider/unprocessable_entity", "Unprocessable", "Weekly limit of invitations with a note reached");
+          state.notesSent++;
         }
         state.invited.push(body.user_id);
         res.writeHead(201, { "content-type": "application/json" });

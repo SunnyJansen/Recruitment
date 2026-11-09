@@ -6,7 +6,10 @@
 import assert from "node:assert/strict";
 
 import {
+  checkInviteNote,
   checkTemplate,
+  DEFAULT_INVITE_NOTE_EN,
+  DEFAULT_INVITE_NOTE_NL,
   DEFAULT_TEMPLATE_EN,
   DEFAULT_TEMPLATE_NL,
   isOptOutReply,
@@ -44,6 +47,16 @@ t("geen plaats → 'jouw regio' / 'your region'", () => {
   assert.equal(renderTemplate("{plaats}", { ...vars, vacancyLocation: null }), "jouw regio");
   assert.equal(renderTemplate("{plaats}", { ...vars, vacancyLocation: " ", language: "en" }), "your region");
 });
+
+console.log("Uitnodigingstekst:");
+const longVars = { ...vars, vacancyTitle: "TIG-lasser RVS", vacancyLocation: "Venlo" };
+t("standaard-uitnodigingsteksten passen in 200 tekens en slagen voor de AVG-controle", () => {
+  assert.deepEqual(checkInviteNote(DEFAULT_INVITE_NOTE_NL, "nl", 200, longVars), []);
+  assert.deepEqual(checkInviteNote(DEFAULT_INVITE_NOTE_EN, "en", 200, longVars), []);
+});
+t("lege uitnodigingstekst mag (= zonder tekst)", () => assert.deepEqual(checkInviteNote("  ", "nl", 200, vars), []));
+t("te lang wordt gemeld met aantal tekens", () => assert.match(checkInviteNote(DEFAULT_INVITE_NOTE_NL + " ".padEnd(60, "x"), "nl", 200, longVars).join(), /LinkedIn staat er 200 toe/));
+t("zonder bron/afmeldoptie geweigerd", () => assert.equal(checkInviteNote("Hoi {voornaam}, zin in een nieuwe baan?", "nl", 200, vars).length, 2));
 
 console.log("Afmelding herkennen:");
 for (const [text, expected] of [

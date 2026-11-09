@@ -84,7 +84,8 @@ await q(`update settings set value = '1' where key = 'delay_max_seconds'`);
 await q(`update settings set value = '[1,2,3,4,5,6,7]' where key = 'work_days'`);
 await q(`update settings set value = '{"start":"00:00","end":"23:59"}' where key = 'work_hours'`);
 await q(`update settings set value = 'false' where key = 'skip_dutch_holidays'`);
-await q(`update settings set value = '3' where key = 'max_invites_per_day'`);
+await q(`update settings set value = '4' where key = 'max_invites_per_day'`);
+unipile.state.noteLimit = 2; // LinkedIn weigert de 3e uitnodiging mét tekst
 
 try {
   console.log("Campagne instellen en goedkeuren:");
@@ -99,6 +100,12 @@ try {
   check("standaardtekst NL ingevuld", (await page.inputValue("#c-nl")).includes("Ik vond je profiel op LinkedIn"));
   check("voorbeeld met naam en afzender", await seen(page.getByText(/Hoi Jan,/)) && (await seen(page.getByText(/Sunny Jansen/))));
   check("Engels voorbeeld", await seen(page.getByText(/Hi Thabo,/)));
+  check("uitnodigingstekst vooraf ingevuld", (await page.inputValue("#c-note-nl")).includes("profiel op LinkedIn"));
+  check("tekenteller uitnodiging", await seen(page.getByText(/\d+ \/ 200 tekens/)));
+  const note = await page.inputValue("#c-note-nl");
+  await page.fill("#c-note-nl", note + " " + "Extra uitleg over de baan en het bedrijf zodat het veel te lang wordt.".repeat(2));
+  check("te lange uitnodigingstekst gemeld", await seen(page.getByText(/LinkedIn staat er 200 toe/)));
+  await page.fill("#c-note-nl", note);
 
   const nl = await page.inputValue("#c-nl");
   await page.fill("#c-nl", nl.replace("op LinkedIn", "online").replace("Geen interesse? Laat het weten, dan benader ik je niet meer.", ""));
@@ -121,23 +128,30 @@ try {
   check("zonder sleutel geweigerd", (await tick({})).status === 401);
   check("verkeerde sleutel geweigerd", (await tick({ authorization: "Bearer fout-fout-fout-fout-fout" })).status === 401);
 
-  console.log("Dag 1: zoeken en uitnodigen (max. 3):");
+  console.log("Dag 1: zoeken en uitnodigen (max. 4 per dag, 2 mét tekst):");
   const first = await tickUntil(async (r) => r.body.steps?.some((s) => /nieuwe kandidaten gevonden/.test(s)));
   check("eerste tik zoekt kandidaten", Boolean(first), JSON.stringify(first?.body));
   check("10 kandidaten klaargezet", (await q(`select count(*)::int as n from candidate_vacancy where outreach_status = 'pending'`))[0].n === 10);
-  check("geen e-mail/profielbezoek nodig", (await q(`select count(*)::int as n from linkedin_actions where kind = 'profile_view'`))[0].n === 0);
-  await tickUntil(async (r) => r.body.state === "waiting" && (await q(`select count(*)::int as n from candidate_vacancy where outreach_status = 'invited'`))[0].n === 3);
+  check("geen profielbezoek nodig", (await q(`select count(*)::int as n from linkedin_actions where kind = 'profile_view'`))[0].n === 0);
+  await tickUntil(async (r) => r.body.state === "waiting" && (await q(`select count(*)::int as n from linkedin_actions where kind = 'invite'`))[0].n === 4);
   const invites = unipile.requests.filter((r) => r.method === "POST" && r.path === `/v2/${FAKE_ACCOUNT}/users/me/relation-requests`);
-  check("precies 3 uitnodigingen (daglimiet)", invites.length === 3, String(invites.length));
-  check("uitnodiging zonder tekst (gratis account)", invites.every((r) => r.body && !("message" in r.body) && r.body.user_id));
-  check("nooit tegelijk (pauze tussen acties)", invites.slice(1).every((r, i) => r.at - invites[i].at >= 0));
+  check("4 pogingen (daglimiet 4)", invites.length === 4, String(invites.length));
+  check("3 uitnodigingen aangekomen", unipile.state.invited.length === 3, String(unipile.state.invited.length));
+  const firstInviteUser = FAKE_PEOPLE.find((p) => p.id === invites[0].body.user_id);
+  const expectedStart = /Netherlands/.test(firstInviteUser.location) ? `Hoi ${firstInviteUser.name.split(" ")[0]},` : `Hi ${firstInviteUser.name.split(" ")[0]},`;
+  check("eerste uitnodiging mét goedgekeurde tekst", invites[0].body.message?.startsWith(expectedStart) && invites[0].body.message.includes("LinkedIn"), invites[0].body.message);
+  check("tekst max. 200 tekens", invites.filter((r) => r.body.message).every((r) => r.body.message.length <= 200));
+  check("3e poging was mét tekst (en werd geweigerd)", Boolean(invites[2].body.message) && unipile.state.notesSent === 2);
+  check("daarna zonder tekst, zelfde kandidaat opnieuw", !("message" in invites[3].body) && invites[3].body.user_id === invites[2].body.user_id);
+  check("database: 2 uitnodigingsteksten verzonden, 1 mislukt", (await q(`select count(*)::int as n from messages where channel = 'linkedin_invite' and status = 'sent'`))[0].n === 2 && (await q(`select count(*)::int as n from messages where channel = 'linkedin_invite' and status = 'failed'`))[0].n === 1);
+  check("tekst-uitnodigingen een week gepauzeerd", (await q(`select next_at > now() + interval '6 days' as b from rate_state where key = 'invite_notes'`))[0].b === true);
   check("fase → benaderd", (await q(`select count(*)::int as n from candidate_vacancy where outreach_status = 'invited' and stage = 'contacted'`))[0].n === 3);
   const extra = await tick();
-  check("daglimiet: geen 4e uitnodiging", extra.body.state === "waiting" && unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length === 3, JSON.stringify(extra.body));
+  check("daglimiet: geen 5e poging", extra.body.state === "waiting" && unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length === 4, JSON.stringify(extra.body));
 
   console.log("Kandidaten accepteren → bericht:");
   const [jan, kees] = [FAKE_PEOPLE[0], FAKE_PEOPLE[3]]; // Jan (NL) en Thabo (ZA) zitten in de eerste 3 uitnodigingen? controleren:
-  const invitedIds = invites.map((r) => r.body.user_id);
+  const invitedIds = [...unipile.state.invited];
   const nlPerson = FAKE_PEOPLE.find((p) => invitedIds.includes(p.id) && /Netherlands/.test(p.location));
   check("testpersoon uitgenodigd", Boolean(nlPerson), invitedIds.join(","));
   void jan;
@@ -153,7 +167,7 @@ try {
   const firstName = nlPerson.name.split(" ")[0];
   check("1-op-1-gesprek (users_ids als tekst)", sends.every((r) => typeof r.body.users_ids === "string"));
   check("exact de goedgekeurde NL-tekst, ingevuld", nlSend?.body.text.startsWith(`Hoi ${firstName},`) && nlSend.body.text.includes("TIG-lasser in Venlo") && nlSend.body.text.includes("Geen interesse? Laat het weten"), nlSend?.body.text);
-  const sentRows = await q(`select * from messages where direction = 'out'`);
+  const sentRows = await q(`select * from messages where direction = 'out' and channel = 'linkedin_message'`);
   check("database: bericht 'verzonden' met campagne en goedkeuring", sentRows.length === 2 && sentRows.every((m) => m.status === "sent" && m.campaign_id === camp.id && m.approved_at));
 
   console.log("Reacties:");
@@ -193,8 +207,9 @@ try {
   check("campagne terug naar concept", afterEdit.status === "draft" && afterEdit.approved_at === null, JSON.stringify(afterEdit));
   await q(`update settings set value = '20' where key = 'max_invites_per_day'`);
   await sleep(1200);
+  const before = unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length;
   const idle = await tick();
-  check("geen nieuwe uitnodigingen zonder goedkeuring", unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length === 3, JSON.stringify(idle.body));
+  check("geen nieuwe uitnodigingen zonder goedkeuring", unipile.requests.filter((r) => r.path.endsWith("/relation-requests")).length === before, JSON.stringify(idle.body));
 
   console.log("Testknop:");
   await page.getByRole("button", { name: "Keur goed en start" }).click();
@@ -202,7 +217,7 @@ try {
   await page.waitForLoadState("networkidle");
   await sleep(1200);
   await page.getByRole("button", { name: /Nu één stap uitvoeren/ }).click();
-  check("testknop voert een stap uit", await seen(page.getByText(/Uitnodiging gestuurd aan|Wacht op pauze/), 10000));
+  check("testknop voert een stap uit", await seen(page.getByText(/Uitnodiging (met|zonder) tekst gestuurd aan|Wacht op pauze/), 10000));
   await shot("4-campagne-actief");
 
   console.log("Buiten werktijd:");

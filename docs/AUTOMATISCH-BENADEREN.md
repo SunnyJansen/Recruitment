@@ -9,8 +9,10 @@ LinkedIn-limieten. Wie reageert, zie je op je dashboard.
 2. Per keer doet de app **hoogstens één** LinkedIn-actie, met een willekeurige pauze
    ertussen, alleen op werkdagen tussen 08:00 en 18:00 (niet op feestdagen):
    - **zoeken**: nieuwe kandidaten uit jouw zoekopdracht (geen profielbezoek nodig);
-   - **uitnodigen**: uitnodiging **zonder tekst** (gratis LinkedIn-account), max. het
-     aantal uit Instellingen (`max_invites_per_day`, nu 10; week: 100);
+   - **uitnodigen**: uitnodiging met jouw **korte uitnodigingstekst** (max. 200 tekens),
+     max. het aantal uit Instellingen (`max_invites_per_day`, nu 10; week: 100). Een gratis
+     LinkedIn-account mag ±15 uitnodigingen **mét tekst per week** (`max_invite_notes_per_week`);
+     daarboven, of als LinkedIn de tekst weigert, gaan uitnodigingen **zonder tekst** (dan een week lang);
    - **bericht**: wie de uitnodiging accepteert, krijgt jouw goedgekeurde tekst
      (Nederlands of Engels, met bronvermelding en afmeldzin), max. 50 per dag.
 3. **Reacties** worden elke 5–12 minuten opgehaald. Reageert iemand, dan staat die
@@ -28,7 +30,9 @@ Wijzig je de tekst of zoekopdracht, dan stopt de campagne tot je opnieuw goedkeu
 ## Eenmalig instellen (±15 minuten)
 
 ### Stap 1 — Database bijwerken
-Supabase → **SQL Editor** → plak `supabase/migrations/20261111000000_automatisch_benaderen.sql` → **Run**.
+Supabase → **SQL Editor** → plak en **Run**, in deze volgorde (elk in een eigen query):
+1. `supabase/migrations/20261111000000_automatisch_benaderen.sql`
+2. `supabase/migrations/20261112000000_uitnodigingstekst.sql`
 
 ### Stap 2 — Twee sleutels in Vercel
 Vercel → je project → **Settings → Environment Variables**:
@@ -55,12 +59,14 @@ Daarna **Deployments → ⋯ → Redeploy**.
 ### Stap 4 — Campagne starten
 1. Open een vacature → **Automatisch benaderen**.
 2. Controleer de **zoekopdracht** (trefwoorden, functie, locatie opzoeken en aanvinken).
-3. Pas de **teksten** aan als je wilt. Rechts/onder zie je een voorbeeld. De app
+3. Pas de **uitnodigingstekst** (kort, max. 200 tekens) en het **bericht na acceptatie** aan als je wilt. Rechts/onder zie je een voorbeeld. De app
    controleert dat de bron (LinkedIn) en een afmeldoptie erin staan.
 4. Klik **Keur goed en start**.
 5. Wil je meteen zien of het werkt: klik **Nu één stap uitvoeren (test)**.
 
 ## Tips
+- **Premium/Sales Navigator?** Zet dan in Supabase (tabel `settings`) `invite_note_max_chars` op 300 en
+  `max_invite_notes_per_week` hoger (bijv. 100).
 - **Week 1:** laat `max_invites_per_day` op 10. Daarna rustig ophogen tot max. 20.
 - **Pauzeren** kan per vacature met de knop **Pauzeer**.
 - Alles staat in het logboek (`activity_log`) en in de tijdlijn per kandidaat.

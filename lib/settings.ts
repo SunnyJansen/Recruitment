@@ -10,6 +10,8 @@ export type AppSettings = {
   maxInvitesPerDay: number;
   maxInvitesPerWeek: number;
   maxMessagesPerDay: number;
+  maxInviteNotesPerWeek: number;
+  inviteNoteMaxChars: number;
   delayMinSeconds: number;
   delayMaxSeconds: number;
   searchPageSize: number;
@@ -29,6 +31,8 @@ export async function loadSettings(supabase: SupabaseClient<Database>): Promise<
     maxInvitesPerDay: num(s.get("max_invites_per_day"), 10),
     maxInvitesPerWeek: num(s.get("max_invites_per_week"), 100),
     maxMessagesPerDay: num(s.get("max_messages_per_day"), 50),
+    maxInviteNotesPerWeek: num(s.get("max_invite_notes_per_week"), 15),
+    inviteNoteMaxChars: num(s.get("invite_note_max_chars"), 200),
     delayMinSeconds: num(s.get("delay_min_seconds"), 30),
     delayMaxSeconds: num(s.get("delay_max_seconds"), 120),
     searchPageSize: num(s.get("search_page_size"), 10),

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/db/server";
 import type { CampaignQuery, OutreachStatus } from "@/lib/db/types";
 import { isUuid } from "@/lib/domain/form-state";
 import { readRequirements } from "@/lib/domain/forms";
-import { DEFAULT_TEMPLATE_EN, DEFAULT_TEMPLATE_NL } from "@/lib/domain/templates";
+import { DEFAULT_INVITE_NOTE_EN, DEFAULT_INVITE_NOTE_NL, DEFAULT_TEMPLATE_EN, DEFAULT_TEMPLATE_NL } from "@/lib/domain/templates";
 import { loadSettings } from "@/lib/settings";
 import { unipileSetupProblem } from "@/lib/unipile/client";
 
@@ -63,7 +63,10 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
       >
         <ol className="flex list-decimal flex-col gap-1 pl-5 text-[13px] text-muted-foreground">
           <li>Elke werkdag zoekt het systeem nieuwe kandidaten met jouw zoekopdracht.</li>
-          <li>Het stuurt een uitnodiging zonder tekst (gratis LinkedIn-account), max. {settings.maxInvitesPerDay} per dag.</li>
+          <li>
+            Het stuurt een uitnodiging met jouw korte tekst, max. {settings.maxInvitesPerDay} per dag. Gratis LinkedIn staat ±
+            {settings.maxInviteNotesPerWeek} uitnodigingen mét tekst per week toe; daarboven gaan ze zonder tekst.
+          </li>
           <li>Wie accepteert, krijgt automatisch jouw goedgekeurde bericht (met bronvermelding en afmeldzin).</li>
           <li>Wie reageert, verschijnt op je dashboard. Reageert iemand met &quot;geen interesse&quot;, dan wordt die kandidaat direct afgemeld.</li>
         </ol>
@@ -89,6 +92,7 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
         vacancyId={id}
         vacancy={{ title: v.title, location: v.location }}
         sender={{ name: setting("sender_name"), title: setting("sender_title"), company: setting("company_name") }}
+        limits={{ inviteNoteMaxChars: settings.inviteNoteMaxChars, maxInviteNotesPerWeek: settings.maxInviteNotesPerWeek }}
         initial={{
           status: campaign?.status ?? null,
           approvedLabel: campaign?.approved_by_label ?? null,
@@ -96,6 +100,8 @@ export default async function AutomatischPage({ params }: PageProps<"/vacatures/
           query,
           templateNl: campaign?.template_nl || DEFAULT_TEMPLATE_NL,
           templateEn: campaign?.template_en || DEFAULT_TEMPLATE_EN,
+          inviteNoteNl: campaign ? campaign.invite_note_nl : DEFAULT_INVITE_NOTE_NL,
+          inviteNoteEn: campaign ? campaign.invite_note_en : DEFAULT_INVITE_NOTE_EN,
         }}
       />
     </>

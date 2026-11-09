@@ -222,6 +222,22 @@ await expectOk("binnenkomend bericht mag altijd", () =>
   db.query(`insert into messages (candidate_id, vacancy_id, channel, direction, body, status) values ($1,$2,'linkedin_message','in','Ja, interessant!','received')`, [nlCand, vac2]));
 await db.exec(asUser);
 
+console.log("\nUitnodigingstekst (regel 1):");
+await db.exec(asSystem);
+await db.query(`update campaigns set invite_note_nl = 'Hoi {voornaam}, ik vond je profiel op LinkedIn. We zoeken een {functie}. Geen interesse? Laat het weten.', invite_note_en = 'Hi {voornaam}, found you on LinkedIn. Not interested? Let me know.' where id = $1`, [camp]);
+const st = (await db.query(`select status from campaigns where id = $1`, [camp])).rows[0].status;
+st === "draft" ? ok("uitnodigingstekst wijzigen → goedkeuring vervalt") : fail("goedkeuring vervalt bij uitnodigingstekst", st);
+await db.query(`update campaigns set approved_at = now(), approved_by_label = 'Teamwachtwoord', status = 'active' where id = $1`, [camp]);
+const note = (await db.query(`select public.render_campaign_message($1, $2, 'invite') as t`, [camp, nlCand])).rows[0].t;
+note === "Hoi Jan, ik vond je profiel op LinkedIn. We zoeken een TIG-lasser. Geen interesse? Laat het weten." ? ok("uitnodigingstekst ingevuld") : fail("uitnodigingstekst ingevuld", note);
+await expectOk("uitnodiging met exact de goedgekeurde tekst mag", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_invite','out',$4,'approved')`, [nlCand, vac2, camp, note]));
+const msgText = (await db.query(`select public.render_campaign_message($1, $2) as t`, [camp, nlCand])).rows[0].t;
+await expectError("uitnodiging met de berichttekst i.p.v. de uitnodigingstekst wordt geweigerd", () =>
+  db.query(`insert into messages (candidate_id, vacancy_id, campaign_id, channel, direction, body, status) values ($1,$2,$3,'linkedin_invite','out',$4,'approved')`,
+    [nlCand, vac2, camp, msgText]), /wijkt af/);
+await db.exec(asUser);
+
 console.log("\nLogboek en beveiliging:");
 await expectOk("gebruiker schrijft in activity_log", () =>
   db.query(`insert into activity_log (actor, actor_id, action, entity) values ('user', $1, 'test', 'test')`, [USER]));

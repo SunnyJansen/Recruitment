@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/ui/panel";
 import { Textarea } from "@/components/ui/textarea";
 import type { CampaignQuery, CampaignStatus } from "@/lib/db/types";
-import { checkTemplate, PLACEHOLDERS, renderTemplate } from "@/lib/domain/templates";
+import { checkInviteNote, checkTemplate, PLACEHOLDERS, renderTemplate } from "@/lib/domain/templates";
 import type { TickReport } from "@/lib/queue/outreach";
 import { cn } from "@/lib/utils";
 
@@ -45,11 +45,13 @@ export function CampaignClient({
   vacancyId,
   vacancy,
   sender,
+  limits,
   initial,
 }: {
   vacancyId: string;
   vacancy: { title: string; location: string | null };
   sender: { name: string; title: string; company: string };
+  limits: { inviteNoteMaxChars: number; maxInviteNotesPerWeek: number };
   initial: {
     status: CampaignStatus | null;
     approvedLabel: string | null;
@@ -57,6 +59,8 @@ export function CampaignClient({
     query: CampaignQuery;
     templateNl: string;
     templateEn: string;
+    inviteNoteNl: string;
+    inviteNoteEn: string;
   };
 }) {
   const router = useRouter();
@@ -70,6 +74,8 @@ export function CampaignClient({
   const [distances, setDistances] = useState<(1 | 2 | 3)[]>(initial.query.network_distance ?? []);
   const [templateNl, setTemplateNl] = useState(initial.templateNl);
   const [templateEn, setTemplateEn] = useState(initial.templateEn);
+  const [noteNl, setNoteNl] = useState(initial.inviteNoteNl);
+  const [noteEn, setNoteEn] = useState(initial.inviteNoteEn);
   const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [tick, setTick] = useState<TickReport | null>(null);
@@ -79,6 +85,8 @@ export function CampaignClient({
   const changed =
     templateNl.trim() !== initial.templateNl.trim() ||
     templateEn.trim() !== initial.templateEn.trim() ||
+    noteNl.replace(/\s+/g, " ").trim() !== initial.inviteNoteNl ||
+    noteEn.replace(/\s+/g, " ").trim() !== initial.inviteNoteEn ||
     keywords.trim() !== (initial.query.keywords ?? "") ||
     title.trim() !== (initial.query.title ?? "") ||
     JSON.stringify(selectedLocations) !== JSON.stringify(initial.query.location_ids ?? []) ||
@@ -94,6 +102,8 @@ export function CampaignClient({
     },
     templateNl,
     templateEn,
+    inviteNoteNl: noteNl,
+    inviteNoteEn: noteEn,
   });
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string; problems?: string[] }>) =>
@@ -124,7 +134,21 @@ export function CampaignClient({
     senderTitle: sender.title,
     companyName: sender.company,
   });
-  const liveProblems = [...checkTemplate(templateNl, "nl"), ...checkTemplate(templateEn, "en")];
+  const baseVars = {
+    vacancyTitle: vacancy.title,
+    vacancyLocation: vacancy.location,
+    senderName: sender.name,
+    senderTitle: sender.title,
+    companyName: sender.company,
+  };
+  const noteSampleNl = renderTemplate(noteNl, { ...baseVars, fullName: "Jan de Vries", language: "nl" });
+  const noteSampleEn = renderTemplate(noteEn, { ...baseVars, fullName: "Thabo Nkosi", language: "en" });
+  const liveProblems = [
+    ...checkInviteNote(noteNl, "nl", limits.inviteNoteMaxChars, { ...baseVars, fullName: "", language: "nl" }),
+    ...checkInviteNote(noteEn, "en", limits.inviteNoteMaxChars, { ...baseVars, fullName: "", language: "en" }),
+    ...checkTemplate(templateNl, "nl"),
+    ...checkTemplate(templateEn, "en"),
+  ];
   const status = initial.status ?? "draft";
 
   return (
@@ -233,7 +257,38 @@ export function CampaignClient({
       </Panel>
 
       <Panel
-        title="2. Berichttekst"
+        title="2. Uitnodigingstekst (kort)"
+        subtitle={`Gaat mee met het connectieverzoek. Dit is het eerste wat de kandidaat leest, dus met bron en afmeldzin. Max. ${limits.inviteNoteMaxChars} tekens. Gratis LinkedIn: ±${limits.maxInviteNotesPerWeek} per week mét tekst; daarboven zonder tekst. Leeg laten = altijd zonder tekst.`}
+      >
+        <div className="grid gap-5 lg:grid-cols-2">
+          {(
+            [
+              ["c-note-nl", "Nederlands", noteNl, setNoteNl, noteSampleNl, "Jan de Vries"],
+              ["c-note-en", "Engels", noteEn, setNoteEn, noteSampleEn, "Thabo Nkosi"],
+            ] as const
+          ).map(([id, label, value, set, sample, who]) => (
+            <div key={id} className="flex flex-col gap-3">
+              <Field label={label} htmlFor={id}>
+                <Textarea id={id} rows={4} value={value} onChange={(e) => set(e.target.value)} />
+              </Field>
+              {value.trim() && (
+                <div className="rounded-tile bg-surface-raised p-4">
+                  <div className="mb-2 flex justify-between gap-2">
+                    <span className="text-field-label text-muted-foreground">Voorbeeld ({who})</span>
+                    <span className={cn("text-app-meta tabular-nums", sample.length > limits.inviteNoteMaxChars ? "text-danger-text" : "text-muted-foreground")}>
+                      {sample.length} / {limits.inviteNoteMaxChars} tekens
+                    </span>
+                  </div>
+                  <p className="text-[13px]">{sample}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel
+        title="3. Bericht na acceptatie"
         subtitle="Gaat automatisch naar kandidaten die je uitnodiging accepteren. Nederlands voor kandidaten in Nederland, Engels voor de rest."
       >
         <p className="text-app-meta text-muted-foreground">
@@ -272,7 +327,7 @@ export function CampaignClient({
         )}
       </Panel>
 
-      <Panel title="3. Goedkeuren" subtitle="Met goedkeuren geef je toestemming dat precies deze tekst automatisch verstuurd wordt.">
+      <Panel title="4. Goedkeuren" subtitle="Met goedkeuren geef je toestemming dat precies deze teksten automatisch verstuurd worden.">
         {message && (
           <p role={message.tone === "error" ? "alert" : "status"} className={cn("text-[13px]", message.tone === "error" ? "text-danger-text" : "text-success")}>
             {message.text}

@@ -62,7 +62,7 @@ index: `https://developer.unipile.com/v2.0/llms.txt`.
 Geverifieerd in `reference/createrelationrequest`, `getuserrelations`, `startchatfrominbox`,
 `getchatslist`, `getmessageslist` en `docs/linkedin-send-messages` (v2, 11 nov 2026).
 - **Uitnodiging:** `POST /v2/{acc}/users/me/relation-requests` body `{ user_id, message? }` → 201
-  `{ object: "RelationRequest", type: "sent", id }`. Wij sturen **geen** `message` (gratis account).
+  `{ object: "RelationRequest", type: "sent", id }`. Wij sturen de goedgekeurde uitnodigingstekst mee zolang het weektegoed het toelaat; anders zonder `message`.
 - **Connecties:** `GET /v2/{acc}/users/me/relations?limit=…&cursor=…` → `{ data: [{ id, created_at,
   user: { id, public_identifier, display_name, profile_url } }], next_cursor }`. Bladeren alleen met `cursor`.
   Unipile raadt aan dit maar een paar keer per dag op willekeurige momenten te doen.
@@ -91,8 +91,10 @@ Geverifieerd in `reference/createrelationrequest`, `getuserrelations`, `startcha
 | 5xx | `api/internal_error`, `provider/server_error`, `provider/timeout` | tijdelijk |
 
 ## Limieten volgens Unipile (per LinkedIn-account)
-- **Uitnodigingen:** betaald account 80–100 per dag / ±200 per week. **Gratis account: ±5 per
-  maand mét bericht** (200 tekens), ±150 per week zonder bericht.
+- **Uitnodigingen (v2-docs, 12 nov 2026):** betaald account 80–100 per dag / ±200 per week, tekst max.
+  300 tekens. **Gratis account met wat geschiedenis: ±15 per week mét tekst (max. 200 tekens)**, ±150 per
+  week zonder tekst. Nieuwe/inactieve accounts: laag beginnen; accounts met < ~150 connecties kunnen er
+  minder sturen. (De oude v1-pagina noemde "±5 per maand mét bericht"; de v2-pagina gaat voor.)
 - **Profielen ophalen:** ±100 per dag (aanbeveling). Wij: `max_profile_views_per_day` (80).
 - **Zoeken:** max. 1.000 resultaten per zoekopdracht (classic). Aanbeveling: max. 1.000
   opgehaalde resultaatregels per dag. Wij: `max_search_results_per_day`.

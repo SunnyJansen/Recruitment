@@ -112,3 +112,33 @@ export function isOptOutReply(text: string): boolean {
     /\bnee,? dank/,
   ].some((re) => re.test(t));
 }
+
+// ---------------------------------------------------------------------------
+// Korte tekst bij de uitnodiging (connectieverzoek)
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_INVITE_NOTE_NL =
+  "Hoi {voornaam}, ik vond je profiel op LinkedIn. Bij {bedrijf} zoeken we een {functie} in {plaats}. Interesse? Zo niet, laat het weten, dan benader ik je niet meer.";
+
+export const DEFAULT_INVITE_NOTE_EN =
+  "Hi {voornaam}, I found your profile on LinkedIn. At {bedrijf} we're looking for a {functie} in {plaats}. Interested? If not, let me know and I won't contact you again.";
+
+/** Lange voornaam om de lengte veilig te controleren. */
+const LONG_FIRST_NAME = "Maximiliaan";
+
+/**
+ * Controle van de uitnodigingstekst. Leeg = uitnodiging zonder tekst (mag).
+ * Anders: dit is het EERSTE bericht, dus bron + afmeldoptie verplicht (AVG),
+ * en ingevuld niet langer dan het maximum van LinkedIn (gratis 200, Premium 300).
+ */
+export function checkInviteNote(text: string, language: "nl" | "en", maxChars: number, vars: TemplateVars): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  const name = language === "nl" ? "Nederlandse" : "Engelse";
+  const problems = checkTemplate(t, language).map((p) => p.replace(`De ${name} tekst`, `De ${name} uitnodigingstekst`));
+  const rendered = renderTemplate(t, { ...vars, fullName: LONG_FIRST_NAME, language });
+  if (rendered.length > maxChars) {
+    problems.push(`De ${name} uitnodigingstekst is ingevuld ${rendered.length} tekens; LinkedIn staat er ${maxChars} toe. Maak hem korter.`);
+  }
+  return problems;
+}

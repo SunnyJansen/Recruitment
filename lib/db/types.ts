@@ -103,6 +103,8 @@ export type Campaign = {
   search_query: Json;
   template_nl: string;
   template_en: string;
+  invite_note_nl: string;
+  invite_note_en: string;
   approved_by: string | null;
   approved_by_label: string | null;
   approved_at: Timestamp | null;
@@ -256,7 +258,7 @@ export type Database = {
       linkedin_count: { Args: { p_kind: string; p_period: string }; Returns: number };
       claim_next_import: { Args: { p_vacancy_id?: string | null }; Returns: ImportQueueItem[] };
       release_stuck_imports: { Args: Record<string, never>; Returns: number };
-      render_campaign_message: { Args: { p_campaign_id: string; p_candidate_id: string }; Returns: string };
+      render_campaign_message: { Args: { p_campaign_id: string; p_candidate_id: string; p_kind?: "message" | "invite" }; Returns: string };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
