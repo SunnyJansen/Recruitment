@@ -1,63 +1,82 @@
-# Unipile — geverifieerde API-informatie
+# Unipile — geverifieerde API-informatie (API v2)
 
 Gecontroleerd op **9 november 2026** in de officiële documentatie
-(developer.unipile.com: `docs/linkedin-search`,
-`reference/linkedincontroller_search`,
-`reference/linkedincontroller_getsearchparameterslist`,
-`reference/userscontroller_getprofilebyidentifier`,
-`docs/provider-limits-and-restrictions`) en de officiële `unipile-node-sdk@1.9.3`.
-Controleer opnieuw bij twijfel of als een endpoint onverwacht reageert (harde regel 6).
+(developer.unipile.com/v2.0: `docs/api-usage`, `docs/error-responses`,
+`docs/migration-linkedin-api`, `docs/migration-users-api`,
+`reference/performclassicpeoplesearch`, `reference/getclassicsearchparameters`,
+`reference/getuserprofile`, `reference/rate-limit`; limieten:
+`docs/provider-limits-and-restrictions`). Controleer opnieuw bij twijfel (harde regel 6).
+Handig: elke docs-pagina is als markdown op te halen door `.md` achter de URL te zetten;
+index: `https://developer.unipile.com/v2.0/llms.txt`.
+
+> **v1 vs v2:** nieuwe Unipile-accounts gebruiken API v2 (account-ID's beginnen met
+> `acc_`). De app gebruikt alleen v2. v1 (`https://{DSN}/api/v1/...?account_id=...`)
+> wordt niet meer ondersteund. Een v1-adres met een `acc_`-account geeft de fout
+> `params/account_id : must match pattern "^acc_(.*)$"`.
 
 ## Algemeen
-- Basis-URL: `https://{DSN}/api/v1/...`. De DSN staat in het Unipile-dashboard, bijv. `api8.unipile.com:13851`.
-- Header `X-API-KEY: <key>`, plus `accept: application/json`.
-- Bijna elk endpoint wil `account_id` (id van het gekoppelde LinkedIn-account) als query-parameter.
+- Basis-URL: `https://api.unipile.com/v2` (alleen HTTPS). Geen DSN meer.
+- Alle LinkedIn-routes: `https://api.unipile.com/v2/{account_id}/...`, met `account_id`
+  = `acc_…` **in het pad** (niet meer als query).
+- Header `X-API-KEY: <key>`. De key moet bij dezelfde Unipile-applicatie horen als het account.
+- Fouten (RFC 7807): `{ object: "Error", type, status, title, detail, req_id }`.
 
 ## Zoeken naar personen (classic)
-`POST /api/v1/linkedin/search?account_id=…&limit=…&cursor=…`
-- `limit`: **classic personen: max. 10 per pagina**; Sales Navigator/Recruiter: max. 100.
-- `cursor` (query-parameter): uit het vorige antwoord, voor de volgende pagina.
-- Body (classic, personen), verplicht: `api: "classic"`, `category: "people"`. Optioneel:
+`POST /v2/{account_id}/linkedin/search/people`
+- Body (alle optioneel, geen extra velden toegestaan):
   - `keywords` (string)
-  - `advanced_keywords`: `{ first_name, last_name, title, company, school }` (strings)
-  - `location`: lijst van ID's als string (`["102890719"]`), via het parameters-endpoint
-  - `industry`, `company`, `past_company`, `school`, `service`: lijsten van ID's
+  - `advanced_keywords`: `{ first_name, last_name, title, company, school }`
+  - `location`: lijst van ID's (strings) via het parameters-endpoint
+  - `current_company`, `past_company`, `school`, `industry`, `service`: lijsten van ID's
   - `network_distance`: `[1, 2, 3]`
   - `profile_language`: ISO 639-1 (`["nl"]`)
-  - **Geen** filter op aantal jaren ervaring in classic (wel in Sales Navigator/Recruiter).
-- Antwoord: `{ object: "LinkedinSearch", items: [...], paging: { start, page_count, total_count }, cursor }`
-- Persoon in `items`: `type: "PEOPLE"`, `id` (= provider_id), `public_identifier`,
-  `public_profile_url`, `profile_url`, `name`, `first_name`, `last_name`, `headline`,
-  `location`, `industry`, `network_distance` (`SELF`/`DISTANCE_1`/`DISTANCE_2`/`DISTANCE_3`/`OUT_OF_NETWORK`),
-  `pending_invitation`, `profile_picture_url`.
-- Foutcodes: 400 ongeldige parameters, 401 account losgekoppeld, 403 geen rechten,
-  404, 500 provider_error, 503 no_client_session, 504.
+  - **Niet meer:** `api`, `category` (v1). **Geen** filter op jaren ervaring in classic.
+- Query: `cursor` = `next_cursor` van de vorige pagina. Classic: 10 personen per pagina.
+- Antwoord: `{ data: [PeopleSearchResult], total_count, next_cursor }`
+- `PeopleSearchResult`: `id` (= provider-id, gebruiken voor profiel), `display_name`,
+  `public_identifier`, `profile_url`, `headline`, `location`, `network_distance`
+  (`SELF`/`FIRST_DEGREE`/`SECOND_DEGREE`/`THIRD_DEGREE`/`OUT_OF_NETWORK`), `industry`,
+  `is_premium`, `is_open_profile`, `product: "classic"`.
 
 ## Locatie-ID's en andere filters opzoeken
-`GET /api/v1/linkedin/search/parameters?account_id=…&type=LOCATION&keywords=limburg&limit=10`
-- `type`: o.a. `LOCATION`, `REGION`, `COMPANY`, `SCHOOL`, `INDUSTRY`, `SKILL`, `JOB_TITLE`, `LANGUAGE`.
-- `limit` 1–100 (standaard 10). `service`: `CLASSIC` (standaard), `RECRUITER`, `SALES_NAVIGATOR`.
-- Antwoord: `{ object: "LinkedinSearchParametersList", items: [{ id, title }], paging }`.
+`GET /v2/{account_id}/linkedin/search/parameters?type=LOCATION&keywords=limburg&limit=10`
+- `type` (verplicht): `LOCATION`, `COMPANY`, `RELATION`, `PEOPLE`, `SCHOOL`, `INDUSTRY`,
+  `SERVICE`, `JOB_FUNCTION`, `JOB_TITLE`, `EMPLOYMENT_TYPE`, `SKILL`.
+- `keywords` (verplicht), `limit` 1–100 (standaard 10), `offset`.
+- Antwoord: `{ data: [{ object: "SearchParameter", id, name }] }`.
 
 ## Profiel ophalen (= profielbezoek)
-`GET /api/v1/users/{identifier}?account_id=…&linkedin_sections=…&notify=false`
-- `identifier`: provider_id of public_identifier.
-- `linkedin_sections`: o.a. `*_preview` (alle secties, eerste regels; aanbevolen bij veel
-  bezoeken), `*` (alles, zwaar), of los: `experience`, `skills`, `about`, …
-- `notify`: of de persoon een melding van het bezoek krijgt. Standaard `false`.
-- Antwoord (`object: "UserProfile"`): `provider_id`, `public_identifier`, `public_profile_url`,
-  `first_name`, `last_name`, `headline`, `location`, `summary`,
-  `work_experience[{ position, company, location, start, end }]`,
-  `skills[{ name, endorsement_count }]`, `languages`, `education`, `network_distance`,
-  `is_relationship`, `contact_info{ emails, phones }`. **E-mail/telefoon nemen we niet over**
-  (besluit: e-mail alleen als de recruiter het zelf invult).
+`GET /v2/{account_id}/users/{user_id}?with_sections=linkedin_*_preview&variant=linkedin_classic`
+- `user_id`: het `id` uit de zoekresultaten.
+- `with_sections`: o.a. `linkedin_*` (alles, zwaar), `linkedin_*_preview` (eerste regels,
+  aanbevolen bij veel bezoeken), of los: `linkedin_experience`, `linkedin_skills`, …
+- **Geen melding aan de persoon:** in v2 is daar een aparte "Notify profile visit"-route
+  voor (`specifics.notify_visit_token`). Die roepen wij nooit aan.
+- Antwoord (`object: "UserProfile"`): `id`, `display_name`, `first_name`, `last_name`,
+  `public_identifier`, `profile_url`, `description` (= kopregel), `bio`, `location`,
+  `emails`, `phone_numbers`, `specifics` met o.a. `experience[{ company: { name },
+  job_title, started_on, ended_on, location }]` (datums `MM/DD/YYYY`), `skills[{ name }]`,
+  `network_distance`. **E-mail/telefoon nemen we niet over** (besluit).
+
+## Foutmeldingen v2 (selectie)
+| status | type | betekenis |
+|---|---|---|
+| 400 | `api/invalid_parameters` | verkeerde parameters (zie `detail`) |
+| 401 | `api/missing_authorization` / `api/expired_authorization` | API-key ontbreekt/verlopen |
+| 401 | `provider/invalid_authorization` | LinkedIn-account opnieuw koppelen |
+| 403 | `api/inactive_subscription` | Unipile-abonnement niet actief |
+| 403 | `api/insufficient_permissions` | key hoort niet bij deze applicatie |
+| 404 | `provider/resource_not_found` | profiel bestaat niet (meer) |
+| 404 | `api/resource_not_found` | account/route onbekend |
+| 422 | `provider/unprocessable_entity` | LinkedIn kan het niet verwerken |
+| 429 | `api/too_many_requests` / `provider/too_many_requests` | rustiger aan; header `retry-after` |
+| 5xx | `api/internal_error`, `provider/server_error`, `provider/timeout` | tijdelijk |
 
 ## Limieten volgens Unipile (per LinkedIn-account)
 - **Uitnodigingen:** betaald account 80–100 per dag / ±200 per week. **Gratis account: ±5 per
-  maand mét bericht** (200 tekens), ±150 per week zonder bericht. Over de limiet:
-  fout `422 / cannot_resend_yet`.
+  maand mét bericht** (200 tekens), ±150 per week zonder bericht.
 - **Profielen ophalen:** ±100 per dag (aanbeveling). Wij: `max_profile_views_per_day` (80).
 - **Zoeken:** max. 1.000 resultaten per zoekopdracht (classic). Aanbeveling: max. 1.000
   opgehaalde resultaatregels per dag. Wij: `max_search_results_per_day`.
+- Daarnaast heeft Unipile v2 eigen rate limits per route (headers `x-ratelimit-*`, bij 429 `retry-after`).
 - Overige acties: standaard max. 100 per dag, willekeurig gespreid.
-- Geaccepteerde uitnodigingen: gebruik de `new_relation`-webhook, niet pollen (fase 7).

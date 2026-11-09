@@ -104,13 +104,23 @@ try {
   await login();
   await page.goto(`${APP}/vacatures/${vac.id}/zoeken`, { waitUntil: "networkidle" });
   check("uitleg 'LinkedIn nog niet gekoppeld'", await seen(page.getByText("LinkedIn nog niet gekoppeld")));
-  check("noemt de ontbrekende sleutels", await seen(page.getByText("UNIPILE_DSN")));
+  check("noemt de ontbrekende sleutels", (await seen(page.getByText("UNIPILE_API_KEY"))) && (await seen(page.getByText("UNIPILE_ACCOUNT_ID"))));
+  check("DSN niet meer nodig (v2)", !(await seen(page.getByText("UNIPILE_DSN"), 1000)));
+  stopApp();
+  await sleep(1000);
+
+  console.log("Account-ID zonder acc_ (oud v1-formaat):");
+  stopApp = await startApp({ UNIPILE_API_KEY: FAKE_KEY, UNIPILE_ACCOUNT_ID: "8RfkKqSKRO-ImzJOi8OR5Q" });
+  await login();
+  await page.goto(`${APP}/vacatures/${vac.id}/zoeken`, { waitUntil: "networkidle" });
+  check("duidelijke melding: moet beginnen met acc_", await seen(page.getByText(/moet beginnen met acc_/)));
   stopApp();
   await sleep(1000);
 
   // ------------------------------------------------------------------
-  console.log("Zoeken:");
-  stopApp = await startApp({ UNIPILE_DSN: "http://localhost:54400", UNIPILE_API_KEY: FAKE_KEY, UNIPILE_ACCOUNT_ID: FAKE_ACCOUNT, UNIPILE_LINKEDIN_API: "classic" });
+  console.log("Zoeken (Unipile API v2):");
+  // Adres met "/v2" erachter, zoals in het Unipile-dashboard: moet gewoon werken.
+  stopApp = await startApp({ UNIPILE_DSN: "http://localhost:54400/v2", UNIPILE_API_KEY: FAKE_KEY, UNIPILE_ACCOUNT_ID: FAKE_ACCOUNT });
   await login();
   await page.goto(`${APP}/vacatures/${vac.id}`, { waitUntil: "networkidle" });
   await page.getByRole("link", { name: "Zoek op LinkedIn" }).click();
@@ -126,12 +136,13 @@ try {
 
   await page.getByRole("button", { name: "Zoek op LinkedIn" }).click();
   await seen(page.getByRole("heading", { name: "Resultaten" }), 15000);
-  const searchReq = unipile.requests.find((r) => r.path === "/api/v1/linkedin/search");
-  check("Unipile: api classic + people", searchReq?.body?.api === "classic" && searchReq?.body?.category === "people", JSON.stringify(searchReq?.body));
+  const SEARCH_PATH = `/v2/${FAKE_ACCOUNT}/linkedin/search/people`;
+  const searchReq = unipile.requests.find((r) => r.path === SEARCH_PATH);
+  check("Unipile v2: juiste route met acc_ in het pad", Boolean(searchReq), JSON.stringify(unipile.requests.map((r) => r.path)));
+  check("Unipile v2: geen oude velden api/category", searchReq && !("api" in searchReq.body) && !("category" in searchReq.body), JSON.stringify(searchReq?.body));
   check("Unipile: locatie-ID meegestuurd", JSON.stringify(searchReq?.body?.location) === '["90009706"]', JSON.stringify(searchReq?.body));
   check("Unipile: functietitel als advanced_keywords", searchReq?.body?.advanced_keywords?.title === "TIG-lasser RVS");
-  check("Unipile: max. 10 per pagina (classic)", searchReq?.query?.limit === "10", JSON.stringify(searchReq?.query));
-  check("Unipile: API-key en account meegestuurd", searchReq?.apiKey === FAKE_KEY && searchReq?.query?.account_id === FAKE_ACCOUNT);
+  check("Unipile: API-key meegestuurd", searchReq?.apiKey === FAKE_KEY);
   check("10 resultaten getoond", (await page.locator("tbody tr").filter({ visible: true }).count()) === 10);
   check("bestaande kandidaat gemarkeerd", await seen(page.getByRole("row", { name: new RegExp(existingPerson.name) }).getByText("Al in database")));
   check("afgemelde persoon gemarkeerd", await seen(page.getByRole("row", { name: new RegExp(optedOutPerson.name) }).getByText("Afgemeld")));
@@ -139,7 +150,7 @@ try {
 
   await page.getByRole("button", { name: "Meer resultaten" }).click();
   await seen(page.getByText(FAKE_PEOPLE[12].name), 10000);
-  check("volgende pagina met cursor", unipile.requests.filter((r) => r.path === "/api/v1/linkedin/search" && r.query.cursor).length === 1);
+  check("volgende pagina met next_cursor", unipile.requests.filter((r) => r.path === SEARCH_PATH && r.query.cursor).length === 1);
   check("alle 13 resultaten getoond", (await page.locator("tbody tr").filter({ visible: true }).count()) === 13);
   check("zoekopdracht bewaard", (await q(`select count(*)::int as n from searches where vacancy_id = $1`, [vac.id]))[0].n === 1);
   check("zoekresultaten geteld", (await q(`select sum(amount)::int as n from linkedin_actions where kind = 'search'`))[0].n === 13);
@@ -158,10 +169,10 @@ try {
   await seen(page.getByText(/Daglimiet bereikt/), 60000);
   check("stopt bij daglimiet (4 profielbezoeken)", await seen(page.getByText(/Daglimiet bereikt: 4 van 4/)));
   await shot("2-import-daglimiet");
-  const views = unipile.requests.filter((r) => /^\/api\/v1\/users\//.test(r.path));
+  const views = unipile.requests.filter((r) => r.path.startsWith(`/v2/${FAKE_ACCOUNT}/users/`));
   check("precies 4 profielen opgehaald", views.length === 4, String(views.length));
-  check("profielbezoek zonder melding (notify=false)", views.every((r) => r.query.notify === "false"));
-  check("alleen preview-secties", views.every((r) => r.query.linkedin_sections === "*_preview"));
+  check("profielbezoek zonder melding (geen notify-aanroep)", views.every((r) => !("notify" in r.query)) && !unipile.requests.some((r) => /notify/.test(r.path)));
+  check("alleen preview-secties", views.every((r) => r.query.with_sections === "linkedin_*_preview"), JSON.stringify(views[0]?.query));
   const gaps = views.slice(1).map((r, i) => r.at - views[i].at);
   check("nooit tegelijk: pauze tussen bezoeken", gaps.every((g) => g >= 900), JSON.stringify(gaps));
 

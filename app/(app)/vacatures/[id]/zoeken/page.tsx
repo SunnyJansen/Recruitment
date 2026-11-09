@@ -28,7 +28,7 @@ export default async function ZoekenPage({ params }: PageProps<"/vacatures/[id]/
   const { data: v } = await supabase.from("vacancies").select("id, title, location, requirements").eq("id", id).maybeSingle();
   if (!v) notFound();
 
-  const { missing } = getUnipileConfig();
+  const { missing, problem } = getUnipileConfig();
   const back = (
     <Button asChild variant="bordered">
       <Link href={`/vacatures/${id}`}>
@@ -37,6 +37,15 @@ export default async function ZoekenPage({ params }: PageProps<"/vacatures/[id]/
       </Link>
     </Button>
   );
+
+  if (problem) {
+    return (
+      <Panel title="Unipile-instelling klopt niet" subtitle={v.title} actions={back}>
+        <p role="alert" className="text-app-body text-danger-text">{problem}</p>
+        <p className="text-app-meta text-muted-foreground">Stap voor stap: docs/UNIPILE-INSTELLEN.md in GitHub.</p>
+      </Panel>
+    );
+  }
 
   if (missing.length) {
     return (

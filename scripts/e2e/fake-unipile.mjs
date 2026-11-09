@@ -1,13 +1,12 @@
 /**
- * Nep-Unipile voor de end-to-end tests. Gedraagt zich zoals de officiële
- * documentatie (docs/UNIPILE.md): zelfde paden, velden en foutcodes, en
- * controleert wat de app meestuurt (API-key, account_id, max. 10 per pagina
- * bij classic, geen melding bij profielbezoek).
+ * Nep-Unipile (API v2) voor de end-to-end tests. Gedraagt zich zoals de
+ * officiële v2-documentatie (docs/UNIPILE.md): zelfde paden met account-ID in
+ * het pad (acc_…), zelfde velden en foutvorm, 10 personen per pagina.
  */
 import http from "node:http";
 
 export const FAKE_KEY = "unipile_test_key";
-export const FAKE_ACCOUNT = "acc_test";
+export const FAKE_ACCOUNT = "acc_test123";
 
 const PEOPLE = [
   ["Jan Bakker", "TIG-lasser RVS bij Staalbouw Venlo", "Venlo, Limburg, Netherlands"],
@@ -25,16 +24,7 @@ const PEOPLE = [
   ["Verdwenen Profiel", "Lasser", "Venlo, Limburg, Netherlands"],
 ].map(([name, headline, location], i) => {
   const n = String(i + 1).padStart(2, "0");
-  const slug = name.toLowerCase().replaceAll(" ", "-");
-  return {
-    id: `ACoAAFake${n}`,
-    public_identifier: slug,
-    name,
-    first_name: name.split(" ")[0],
-    last_name: name.split(" ").slice(1).join(" "),
-    headline,
-    location,
-  };
+  return { id: `ACoAAFake${n}`, public_identifier: name.toLowerCase().replaceAll(" ", "-"), name, headline, location };
 });
 
 /** Profiel 13 bestaat niet meer (404), om foutafhandeling te testen. */
@@ -50,95 +40,103 @@ export async function startFakeUnipile(port) {
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
       const url = new URL(req.url, "http://fake");
-      requests.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), body: raw ? JSON.parse(raw) : null, at: Date.now(), apiKey: req.headers["x-api-key"] });
-      const send = (code, obj) => {
-        res.writeHead(code, { "content-type": "application/json" });
+      requests.push({ method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), queryAll: [...url.searchParams], body: raw ? JSON.parse(raw) : null, at: Date.now(), apiKey: req.headers["x-api-key"] });
+      const error = (status, type, title, detail) => {
+        res.writeHead(status, { "content-type": "application/json" });
+        res.end(JSON.stringify({ object: "Error", type, status, title, detail, req_id: "req_test" }));
+      };
+      const send = (obj) => {
+        res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify(obj));
       };
-      if (req.headers["x-api-key"] !== FAKE_KEY || url.searchParams.get("account_id") !== FAKE_ACCOUNT || state.mode === "disconnected") {
-        return send(401, { status: 401, type: "errors/disconnected_account", title: "Disconnected account" });
-      }
 
-      if (req.method === "GET" && url.pathname === "/api/v1/linkedin/search/parameters") {
-        const kw = url.searchParams.get("keywords") ?? "";
-        if (url.searchParams.get("type") !== "LOCATION") return send(400, { status: 400, type: "errors/invalid_parameters" });
-        return send(200, {
-          object: "LinkedinSearchParametersList",
-          items: [
-            { object: "LinkedinSearchParameter", title: `${kw}, Nederland`, id: "90009706" },
-            { object: "LinkedinSearchParameter", title: `${kw}, België`, id: "90009707" },
+      if (!req.headers["x-api-key"]) return error(401, "api/missing_authorization", "Missing authorization");
+      if (req.headers["x-api-key"] !== FAKE_KEY) return error(401, "api/expired_authorization", "Expired authorization");
+
+      const m = url.pathname.match(/^\/v2\/([^/]+)\/(.*)$/);
+      if (!m) return error(404, "api/resource_not_found", "Route not found");
+      const [, accountId, rest] = m;
+      if (!/^acc_/.test(accountId)) {
+        return error(400, "api/invalid_parameters", "Invalid parameters", 'params/account_id : must match pattern "^acc_(.*)$"');
+      }
+      if (accountId !== FAKE_ACCOUNT) return error(404, "api/resource_not_found", "Account not found");
+      if (state.mode === "disconnected") return error(401, "provider/invalid_authorization", "Invalid authorization");
+
+      if (req.method === "GET" && rest === "linkedin/search/parameters") {
+        const kw = url.searchParams.get("keywords");
+        if (url.searchParams.get("type") !== "LOCATION" || !kw) return error(400, "api/invalid_parameters", "Invalid parameters", "type/keywords");
+        return send({
+          data: [
+            { object: "SearchParameter", id: "90009706", name: `${kw}, Nederland` },
+            { object: "SearchParameter", id: "90009707", name: `${kw}, België` },
           ],
-          paging: { page_count: 2 },
         });
       }
 
-      if (req.method === "POST" && url.pathname === "/api/v1/linkedin/search") {
+      if (req.method === "POST" && rest === "linkedin/search/people") {
         const body = raw ? JSON.parse(raw) : {};
-        const limit = Number(url.searchParams.get("limit") ?? 10);
-        if (body.api !== "classic" || body.category !== "people") {
-          return send(400, { status: 400, type: "errors/invalid_parameters", detail: "api/category" });
-        }
-        if (limit > 10) return send(400, { status: 400, type: "errors/invalid_parameters", detail: "Classic people: max 10 per page" });
+        // v2: geen api/category meer (additionalProperties: false).
+        const allowed = ["keywords", "network_distance", "location", "current_company", "past_company", "school", "connections_of", "followers_of", "industry", "service", "profile_language", "open_to_volunteering", "advanced_keywords"];
+        const unknown = Object.keys(body).filter((k) => !allowed.includes(k));
+        if (unknown.length) return error(400, "api/invalid_parameters", "Invalid parameters", `body must NOT have additional properties: ${unknown.join(",")}`);
         const cursor = url.searchParams.get("cursor");
         const start = cursor ? JSON.parse(Buffer.from(cursor, "base64").toString()).start : 0;
-        const page = PEOPLE.slice(start, start + limit);
-        const next = start + limit < PEOPLE.length ? Buffer.from(JSON.stringify({ start: start + limit })).toString("base64") : null;
-        return send(200, {
-          object: "LinkedinSearch",
-          items: page.map((p) => ({
-            object: "SearchResult",
-            type: "PEOPLE",
+        const page = PEOPLE.slice(start, start + 10);
+        const next = start + 10 < PEOPLE.length ? Buffer.from(JSON.stringify({ start: start + 10 })).toString("base64") : undefined;
+        return send({
+          data: page.map((p) => ({
+            object: "PeopleSearchResult",
             id: p.id,
+            member_id: `member-${p.id}`,
+            display_name: p.name,
             public_identifier: p.public_identifier,
-            public_profile_url: `https://www.linkedin.com/in/${p.public_identifier}`,
-            profile_url: `https://www.linkedin.com/in/${p.public_identifier}?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3A${p.id}`,
-            profile_picture_url: null,
-            profile_picture_url_large: null,
-            member_urn: `urn:li:member:${p.id}`,
-            name: p.name,
-            network_distance: "DISTANCE_2",
+            profile_url: `https://www.linkedin.com/in/${p.public_identifier}`,
             location: p.location,
-            industry: null,
             headline: p.headline,
+            network_distance: "SECOND_DEGREE",
+            product: "classic",
           })),
-          config: { params: body },
-          paging: { start, page_count: page.length, total_count: PEOPLE.length },
-          cursor: next,
+          total_count: PEOPLE.length,
+          ...(next ? { next_cursor: next } : {}),
         });
       }
 
-      const profile = url.pathname.match(/^\/api\/v1\/users\/([^/]+)$/);
+      const profile = rest.match(/^users\/([^/]+)$/);
       if (req.method === "GET" && profile) {
         const id = decodeURIComponent(profile[1]);
         const p = PEOPLE.find((x) => x.id === id || x.public_identifier === id);
-        if (!p || p.id === MISSING_PROFILE_ID) return send(404, { status: 404, type: "errors/resource_not_found", title: "Not found" });
-        return send(200, {
+        if (!p || p.id === MISSING_PROFILE_ID) return error(404, "provider/resource_not_found", "Resource not found");
+        return send({
           object: "UserProfile",
-          provider: "LINKEDIN",
-          provider_id: p.id,
+          id: p.id,
+          type: "user",
+          provider: "linkedin",
           public_identifier: p.public_identifier,
-          public_profile_url: `https://www.linkedin.com/in/${p.public_identifier}`,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          headline: p.headline,
+          display_name: p.name,
+          first_name: p.name.split(" ")[0],
+          last_name: p.name.split(" ").slice(1).join(" "),
+          profile_url: `https://www.linkedin.com/in/${p.public_identifier}`,
+          description: p.headline,
+          bio: "Ervaren lasser.",
           location: p.location,
-          summary: "Ervaren lasser.",
-          websites: [],
-          network_distance: "SECOND_DEGREE",
           // Mag NIET overgenomen worden (besluit: e-mail alleen handmatig).
-          contact_info: { emails: [`${p.public_identifier}@example.com`], phones: ["+31612345678"] },
-          work_experience: [
-            { position: p.headline, company: "Huidig Bedrijf BV", location: p.location, start: "1/2021", end: null, skills: [] },
-            { position: "Leerling-lasser", company: "Vorig Bedrijf BV", location: p.location, start: "1/2017", end: "12/2020", skills: [] },
-          ],
-          skills: [
-            { name: "TIG", endorsement_count: 4 },
-            { name: "RVS", endorsement_count: 2 },
-          ],
+          emails: [`${p.public_identifier}@example.com`],
+          phone_numbers: ["+31612345678"],
+          specifics: {
+            network_distance: "SECOND_DEGREE",
+            experience: [
+              { company: { id: "1", name: "Huidig Bedrijf BV" }, job_title: p.headline, started_on: "01/01/2021", location: p.location },
+              { company: { id: "2", name: "Vorig Bedrijf BV" }, job_title: "Leerling-lasser", started_on: "01/01/2017", ended_on: "12/31/2020" },
+            ],
+            skills: [
+              { name: "TIG", endorsement_count: 4 },
+              { name: "RVS", endorsement_count: 2 },
+            ],
+          },
         });
       }
 
-      send(404, { status: 404, type: "errors/resource_not_found" });
+      error(404, "api/resource_not_found", "Route not found");
     });
   });
 

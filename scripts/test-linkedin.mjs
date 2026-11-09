@@ -44,22 +44,23 @@ t("Tweede Kerstdag 2026 (zaterdag) en Eerste Kerstdag op vrijdag → dicht met n
 t("feestdagen uit te zetten", () =>
   assert.equal(checkWorkingHours(at("2026-12-25T10:00:00Z"), { ...DEFAULT_SCHEDULE, skipDutchHolidays: false }).open, true));
 
-console.log("Zoekresultaten omzetten:");
-t("persoon uit voorbeeld in documentatie", () => {
+console.log("Zoekresultaten omzetten (Unipile v2):");
+t("persoon in v2-vorm (data, display_name, next_cursor)", () => {
   const r = mapSearchResponse({
-    items: [
-      { type: "PEOPLE", id: "ACoAAAdHsOUBYtAunOfY0wJIbiwgewolov5X55M", name: "Piyush Narwani", profile_url: "https://www.linkedin.com/in/piyushnarwani?miniProfileUrn=urn%3Ali%3Afs", network_distance: "DISTANCE_2", location: "San Francisco, CA", headline: "Co-Founder" },
-      { type: "COMPANY", id: "123", name: "Bedrijf" },
+    data: [
+      { object: "PeopleSearchResult", id: "ACoAAAdHsOU", display_name: "Piyush Narwani", public_identifier: "piyushnarwani", profile_url: "https://www.linkedin.com/in/piyushnarwani?miniProfileUrn=x", network_distance: "SECOND_DEGREE", location: "San Francisco, CA", headline: "Co-Founder", product: "classic" },
     ],
-    cursor: "abc",
-    paging: { total_count: 57 },
+    next_cursor: "abc",
+    total_count: 57,
   });
   assert.equal(r.people.length, 1);
+  assert.equal(r.people[0].name, "Piyush Narwani");
   assert.equal(r.people[0].profileUrl, "https://www.linkedin.com/in/piyushnarwani");
   assert.equal(r.people[0].distance, 2);
   assert.equal(r.cursor, "abc");
   assert.equal(r.total, 57);
 });
+t("laatste pagina: geen next_cursor", () => assert.equal(mapSearchResponse({ data: [] }).cursor, null));
 
 console.log("Profiel → kandidaat:");
 t("land uit locatie", () => {
@@ -67,22 +68,26 @@ t("land uit locatie", () => {
   assert.equal(countryFromLocation("Secunda, Mpumalanga, South Africa"), "ZA");
   assert.equal(countryFromLocation("Remote"), null);
 });
-t("profiel wordt kandidaat; geen e-mail/telefoon; huidige werkgever; taal", () => {
+t("v2-profiel wordt kandidaat; geen e-mail/telefoon; huidige werkgever; taal", () => {
   const c = profileToCandidate({
-    provider_id: "ACoAAB1",
+    id: "ACoAAB1",
     public_identifier: "jan-lasser",
-    first_name: "Jan",
-    last_name: "Lasser",
-    headline: "TIG-lasser",
+    display_name: "Jan Lasser",
+    description: "TIG-lasser",
     location: "Venlo, Limburg, Netherlands",
-    contact_info: { emails: ["jan@example.com"], phones: ["0612345678"] },
-    work_experience: [
-      { position: "TIG-lasser", company: "Staalbouw BV", start: "1/2021", end: null },
-      { position: "Leerling-lasser", company: "Oud BV", start: "1/2018", end: "12/2020" },
-    ],
-    skills: [{ name: "TIG", endorsement_count: 3 }, { name: "RVS", endorsement_count: 1 }, { name: "TIG", endorsement_count: 0 }],
+    emails: ["jan@example.com"],
+    phone_numbers: ["0612345678"],
+    specifics: {
+      experience: [
+        { company: { name: "Staalbouw BV" }, job_title: "TIG-lasser", started_on: "01/01/2021" },
+        { company: { name: "Oud BV" }, job_title: "Leerling-lasser", started_on: "01/01/2018", ended_on: "12/31/2020" },
+      ],
+      skills: [{ name: "TIG", endorsement_count: 3 }, { name: "RVS", endorsement_count: 1 }, { name: "TIG", endorsement_count: 0 }],
+    },
   });
   assert.equal(c.full_name, "Jan Lasser");
+  assert.equal(c.headline, "TIG-lasser");
+  assert.equal(c.linkedin_provider_id, "ACoAAB1");
   assert.equal(c.linkedin_url, "https://www.linkedin.com/in/jan-lasser");
   assert.equal(c.country, "NL");
   assert.equal(c.language, "nl");
@@ -90,10 +95,12 @@ t("profiel wordt kandidaat; geen e-mail/telefoon; huidige werkgever; taal", () =
   assert.deepEqual(c.skills, ["TIG", "RVS"]);
   assert.equal("email" in c, false);
   assert.equal("phone" in c, false);
-  assert.equal(experienceToText(c.experience), "TIG-lasser – Staalbouw BV – 1/2021–heden\nLeerling-lasser – Oud BV – 1/2018–12/2020");
+  assert.equal(experienceToText(c.experience), "TIG-lasser – Staalbouw BV – 01/01/2021–heden\nLeerling-lasser – Oud BV – 01/01/2018–12/31/2020");
 });
 t("Zuid-Afrikaans profiel → Engels", () =>
-  assert.equal(profileToCandidate({ provider_id: "x", location: "Secunda, South Africa" }).language, "en"));
+  assert.equal(profileToCandidate({ id: "x", location: "Secunda, South Africa" }).language, "en"));
+t("naam uit voor- en achternaam als display_name ontbreekt", () =>
+  assert.equal(profileToCandidate({ id: "x", first_name: "Thabo", last_name: "Nkosi" }).full_name, "Thabo Nkosi"));
 
 console.log(`\n${failed ? `${failed} mislukt` : "Alles geslaagd"}`);
 process.exit(failed ? 1 : 0);

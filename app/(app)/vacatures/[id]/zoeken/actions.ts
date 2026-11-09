@@ -9,8 +9,8 @@ import { isUuid } from "@/lib/domain/form-state";
 import { type ImportProgress, processNextImport } from "@/lib/queue/import";
 import { checkWorkingHours } from "@/lib/queue/schedule";
 import { loadSettings } from "@/lib/settings";
-import { getUnipileConfig, UnipileError } from "@/lib/unipile/client";
-import { maxPageSize, searchLocations, searchPeople } from "@/lib/unipile/linkedin";
+import { getUnipileConfig, UnipileError, unipileSetupProblem } from "@/lib/unipile/client";
+import { searchLocations, searchPeople } from "@/lib/unipile/linkedin";
 import type { SearchPerson } from "@/lib/unipile/map";
 
 /** Zelfde hash als public.dnc_hash() in de database. */
@@ -49,8 +49,8 @@ function unipileMessage(e: unknown) {
 export async function findLocations(text: string): Promise<{ ok: true; items: LocationOption[] } | { ok: false; message: string }> {
   const keywords = text.trim().slice(0, 80);
   if (keywords.length < 2) return { ok: false, message: "Typ minstens 2 letters." };
-  const { config, missing } = getUnipileConfig();
-  if (!config) return { ok: false, message: `Unipile is nog niet ingesteld (${missing.join(", ")}).` };
+  const { config } = getUnipileConfig();
+  if (!config) return { ok: false, message: unipileSetupProblem() ?? "Unipile is nog niet ingesteld." };
   try {
     const items = await searchLocations(config, keywords);
     return items.length ? { ok: true, items } : { ok: false, message: `Geen locaties gevonden voor "${keywords}".` };
@@ -70,8 +70,8 @@ export async function runSearch(input: SearchInput): Promise<SearchResult> {
     return { ok: false, message: "Vul minstens trefwoorden, een functie of een locatie in." };
   }
 
-  const { config, missing } = getUnipileConfig();
-  if (!config) return { ok: false, message: `Unipile is nog niet ingesteld (${missing.join(", ")}).` };
+  const { config } = getUnipileConfig();
+  if (!config) return { ok: false, message: unipileSetupProblem() ?? "Unipile is nog niet ingesteld." };
 
   const supabase = await createClient();
   const user = await getCurrentUser();
@@ -96,7 +96,6 @@ export async function runSearch(input: SearchInput): Promise<SearchResult> {
       locationIds,
       networkDistance: distances,
       cursor: input.cursor ?? null,
-      limit: Math.min(settings.searchPageSize, maxPageSize(config.api)),
     });
   } catch (e) {
     return { ok: false, message: unipileMessage(e) };
@@ -115,7 +114,7 @@ export async function runSearch(input: SearchInput): Promise<SearchResult> {
   if (!searchId) {
     const { data: s } = await supabase
       .from("searches")
-      .insert({ vacancy_id: input.vacancyId, query, api_type: config.api, results_count: result.total ?? result.people.length })
+      .insert({ vacancy_id: input.vacancyId, query, api_type: "classic", results_count: result.total ?? result.people.length })
       .select("id")
       .single();
     searchId = s?.id ?? null;

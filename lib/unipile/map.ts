@@ -1,46 +1,55 @@
 /**
- * Omzetten van Unipile-antwoorden naar onze eigen vorm. Puur, zodat het los
- * te testen is. Veldnamen geverifieerd in docs/UNIPILE.md.
+ * Omzetten van Unipile-antwoorden (API v2) naar onze eigen vorm. Puur, zodat
+ * het los te testen is. Veldnamen geverifieerd in docs/UNIPILE.md.
  */
 import { languageForCountry, normalizeLinkedinUrl } from "../domain/forms.ts";
 
 // ---------------------------------------------------------------------------
-// Ruwe vormen (alleen de velden die we gebruiken)
+// Ruwe vormen (alleen de velden die we gebruiken) — Unipile API v2
 // ---------------------------------------------------------------------------
 
+/** PeopleSearchResult (POST /v2/{account_id}/linkedin/search/people). */
 export type RawSearchPerson = {
-  type?: string;
+  object?: string;
   id: string;
   public_identifier?: string | null;
-  public_profile_url?: string | null;
   profile_url?: string | null;
-  name?: string | null;
-  first_name?: string;
-  last_name?: string;
-  headline?: string;
+  display_name?: string | null;
+  headline?: string | null;
   location?: string | null;
   network_distance?: string;
-  pending_invitation?: boolean;
 };
 
 export type RawSearchResponse = {
-  items?: RawSearchPerson[];
-  cursor?: string | null;
-  paging?: { start?: number | null; page_count?: number; total_count?: number | null };
+  data?: RawSearchPerson[];
+  total_count?: number | null;
+  next_cursor?: string | null;
 };
 
+/** UserProfile (GET /v2/{account_id}/users/{user_id}). */
 export type RawProfile = {
-  provider_id: string;
+  id: string;
   public_identifier?: string | null;
-  public_profile_url?: string;
+  profile_url?: string | null;
+  display_name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
-  headline?: string;
-  location?: string;
-  summary?: string;
-  work_experience?: { position?: string; company?: string; location?: string; start?: string | null; end?: string | null }[];
-  skills?: { name: string }[];
-  network_distance?: string;
+  description?: string | null; // = kopregel (v1: headline)
+  bio?: string | null;
+  location?: string | null;
+  emails?: string[];
+  phone_numbers?: string[];
+  specifics?: {
+    network_distance?: string;
+    experience?: {
+      company?: { name?: string | null } | null;
+      job_title?: string | null;
+      started_on?: string | null;
+      ended_on?: string | null;
+      location?: string | null;
+    }[];
+    skills?: { name: string }[];
+  } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -55,22 +64,21 @@ export type SearchPerson = {
   location: string;
   profileUrl: string | null;
   distance: 1 | 2 | 3 | null;
-  pendingInvitation: boolean;
 };
 
 /** Profiellink zonder trackingparameters, in de vorm die wij opslaan. */
-export function profileUrlOf(p: { public_profile_url?: string | null; profile_url?: string | null; public_identifier?: string | null }) {
-  const fromUrl = normalizeLinkedinUrl(p.public_profile_url ?? "") ?? normalizeLinkedinUrl(p.profile_url ?? "");
+export function profileUrlOf(p: { profile_url?: string | null; public_identifier?: string | null }) {
+  const fromUrl = normalizeLinkedinUrl(p.profile_url ?? "");
   if (fromUrl) return fromUrl;
   return p.public_identifier ? normalizeLinkedinUrl(`https://www.linkedin.com/in/${p.public_identifier}`) : null;
 }
 
 function distanceOf(value: string | undefined): 1 | 2 | 3 | null {
-  return value === "DISTANCE_1" || value === "FIRST_DEGREE"
+  return value === "FIRST_DEGREE" || value === "DISTANCE_1"
     ? 1
-    : value === "DISTANCE_2" || value === "SECOND_DEGREE"
+    : value === "SECOND_DEGREE" || value === "DISTANCE_2"
       ? 2
-      : value === "DISTANCE_3" || value === "THIRD_DEGREE"
+      : value === "THIRD_DEGREE" || value === "DISTANCE_3"
         ? 3
         : null;
 }
@@ -80,19 +88,18 @@ export function mapSearchResponse(raw: RawSearchResponse): {
   cursor: string | null;
   total: number | null;
 } {
-  const people = (raw.items ?? [])
-    .filter((i) => (i.type ?? "PEOPLE") === "PEOPLE" && i.id)
+  const people = (raw.data ?? [])
+    .filter((i) => i.id && (i.object ?? "PeopleSearchResult") === "PeopleSearchResult")
     .map((i) => ({
       providerId: i.id,
       publicIdentifier: i.public_identifier ?? null,
-      name: (i.name ?? [i.first_name, i.last_name].filter(Boolean).join(" ")).trim() || "LinkedIn-lid",
+      name: (i.display_name ?? "").trim() || "LinkedIn-lid",
       headline: i.headline ?? "",
       location: i.location ?? "",
       profileUrl: profileUrlOf(i),
       distance: distanceOf(i.network_distance),
-      pendingInvitation: Boolean(i.pending_invitation),
     }));
-  return { people, cursor: raw.cursor ?? null, total: raw.paging?.total_count ?? null };
+  return { people, cursor: raw.next_cursor || null, total: raw.total_count ?? null };
 }
 
 // ---------------------------------------------------------------------------
@@ -133,26 +140,30 @@ export type ImportedCandidate = {
  * bewust NIET over (besluit: alleen als de recruiter het zelf invult).
  */
 export function profileToCandidate(p: RawProfile, fallbackName?: string): ImportedCandidate {
-  const experience = (p.work_experience ?? []).map((w) => ({
-    title: w.position ?? "",
-    company: w.company ?? "",
+  const experience = (p.specifics?.experience ?? []).map((w) => ({
+    title: w.job_title ?? "",
+    company: w.company?.name ?? "",
     location: w.location ?? null,
-    start: w.start ?? null,
-    end: w.end ?? null,
+    start: w.started_on ?? null,
+    end: w.ended_on ?? null,
   }));
   const current = experience.find((w) => !w.end) ?? null;
   const country = countryFromLocation(p.location);
-  const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || fallbackName || "LinkedIn-lid";
+  const name =
+    (p.display_name ?? "").trim() ||
+    [p.first_name, p.last_name].filter(Boolean).join(" ").trim() ||
+    fallbackName ||
+    "LinkedIn-lid";
   return {
-    linkedin_provider_id: p.provider_id,
+    linkedin_provider_id: p.id,
     linkedin_url: profileUrlOf(p),
     full_name: name,
-    headline: p.headline || null,
+    headline: p.description || null,
     location: p.location || null,
     country,
     language: languageForCountry(country),
     current_company: current?.company || null,
-    skills: [...new Set((p.skills ?? []).map((s) => s.name).filter(Boolean))],
+    skills: [...new Set((p.specifics?.skills ?? []).map((s) => s.name).filter(Boolean))],
     experience,
   };
 }

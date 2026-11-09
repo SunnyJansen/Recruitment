@@ -6,7 +6,7 @@ import { logActivity } from "@/lib/db/log";
 import type { Database, ImportQueueItem, ImportStatus, Json, SlotResult } from "@/lib/db/types";
 import { checkWorkingHours } from "@/lib/queue/schedule";
 import { loadSettings } from "@/lib/settings";
-import { getUnipileConfig, UnipileError } from "@/lib/unipile/client";
+import { getUnipileConfig, UnipileError, unipileSetupProblem } from "@/lib/unipile/client";
 import { getProfile } from "@/lib/unipile/linkedin";
 import { profileToCandidate } from "@/lib/unipile/map";
 
@@ -57,9 +57,9 @@ export async function processNextImport(supabase: Db, vacancyId: string, actorId
     return { state: before.counts.processing ? "waiting" : "finished", waitSeconds: 10, ...before };
   }
 
-  const { config, missing } = getUnipileConfig();
+  const { config } = getUnipileConfig();
   if (!config) {
-    return { state: "error", message: `Unipile is nog niet ingesteld. Ontbrekend in Vercel: ${missing.join(", ")}.`, ...before };
+    return { state: "error", message: unipileSetupProblem() ?? "Unipile is nog niet ingesteld.", ...before };
   }
 
   const settings = await loadSettings(supabase);
@@ -106,17 +106,18 @@ export async function processNextImport(supabase: Db, vacancyId: string, actorId
   } catch (e) {
     const err = e instanceof UnipileError ? e : new UnipileError("Onbekende fout bij Unipile.", 0, null);
     // Tijdelijke problemen: terug in de wachtrij (max. 3 pogingen). Blijvende: overslaan.
-    const temporary = [0, 429, 500, 502, 503, 504].includes(err.status) && item.attempts < 3;
+    const temporary = err.temporary && item.attempts < 3;
     if (temporary) {
       await supabase.from("import_queue").update({ status: "pending", result: err.message }).eq("id", item.id);
     } else {
       await finish("failed", err.message);
     }
-    const halt = err.status === 401 || err.status === 403;
+    // Account/abonnement/API-key-problemen: stoppen tot iemand het oplost.
+    const halt = err.status === 401 || err.status === 403 || err.type === "api/resource_not_found";
     return {
       state: halt ? "error" : "waiting",
       message: halt ? err.message : `${item.name ?? "Profiel"}: ${err.message}`,
-      waitSeconds: slot.wait_seconds,
+      waitSeconds: Math.max(slot.wait_seconds ?? 0, err.retryAfter ?? 0),
       ...(await progressFor(supabase, vacancyId)),
     };
   }

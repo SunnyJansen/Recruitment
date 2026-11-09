@@ -18,7 +18,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
 - **Next.js (App Router) + TypeScript** — frontend + API-routes
 - **Supabase** (Postgres + Auth) — database en login
 - **Tailwind CSS + shadcn/ui** — interface, in huisstijl **Sunny Apple** (dashboardstijl, donker standaard). Zie `docs/DESIGN.md`
-- **Unipile API** — LinkedIn zoeken, profielen, uitnodigingen, berichten, webhooks
+- **Unipile API v2** — LinkedIn zoeken, profielen, uitnodigingen, berichten, webhooks
 - **Anthropic API** (`@anthropic-ai/sdk`) — matching en berichten schrijven. Model via env-var `ANTHROPIC_MODEL`
 - **Resend** — e-mail versturen
 - **Vercel** — hosting (nodig voor publieke webhook-URL). Gratis plan: Vercel Cron maar 1×/dag, dus de wachtrij wordt aangeroepen door een externe cron-dienst met `CRON_SECRET`
@@ -40,7 +40,7 @@ Sunny Jansen (Projectmanager, **Cr8las**) — geen fulltime developer. Leg keuze
    - log elke actie in `activity_log`
 4. **AI beslist niet zelf over kandidaten.** Matchscore is advies; afwijzen/doorzetten doet een mens (EU AI Act: recruitment-AI = hoog risico).
 5. **Geheimen alleen in Vercel Environment Variables (of `.env.local`)**, nooit in code of git.
-6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken. Al geverifieerd: zie `docs/UNIPILE.md` (zoeken, locatie-ID's, profiel, limieten). De omgeving `recruitment` staat developer.unipile.com toe (ophalen met `curl` via de proxy; WebFetch kan het soms niet).
+6. **Unipile-endpoints altijd verifiëren** in de actuele docs (https://developer.unipile.com) voordat je ze implementeert — niet gokken. **We gebruiken Unipile API v2** (`https://api.unipile.com/v2/{acc_…}/…`, account-ID in het pad); v1 niet. Al geverifieerd: zie `docs/UNIPILE.md` (zoeken, locatie-ID's, profiel, foutcodes, limieten). v2-docs: `developer.unipile.com/v2.0/...` (zet `.md` achter een URL voor markdown; index `v2.0/llms.txt`). De omgeving `recruitment` staat developer.unipile.com toe (ophalen met `curl` via de proxy; WebFetch kan het soms niet).
 
 ## Besluiten
 Alle antwoorden op de startvragen (doelgroep lassers NL + Zuid-Afrika, taal NL/EN per kandidaat, opvolgschema, bewaartermijnen, enz.) staan in `docs/BESLUITEN.md`. Die gaan voor op aannames.
